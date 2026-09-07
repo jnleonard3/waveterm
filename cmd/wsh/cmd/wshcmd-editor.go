@@ -16,7 +16,12 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
 )
 
-var editMagnified bool
+var (
+	editMagnified bool
+	editorTabId   string
+	editorJSON    bool
+	editorNoFocus bool
+)
 
 var editorCmd = &cobra.Command{
 	Use:     "editor",
@@ -27,6 +32,9 @@ var editorCmd = &cobra.Command{
 
 func init() {
 	editorCmd.Flags().BoolVarP(&editMagnified, "magnified", "m", false, "open view in magnified mode")
+	editorCmd.Flags().StringVar(&editorTabId, "tab", "", "target tab id (defaults to WAVETERM_TABID)")
+	editorCmd.Flags().BoolVar(&editorJSON, "json", false, "output creation result as JSON before waiting")
+	editorCmd.Flags().BoolVar(&editorNoFocus, "no-focus", false, "create block without focusing it")
 	rootCmd.AddCommand(editorCmd)
 }
 
@@ -55,9 +63,13 @@ func editorRun(cmd *cobra.Command, args []string) (rtnErr error) {
 		return fmt.Errorf("getting file info: %w", err)
 	}
 
-	tabId := getTabIdFromEnv()
-	if tabId == "" {
-		return fmt.Errorf("no WAVETERM_TABID env var set")
+	tabId, err := resolveTargetTabId(editorTabId)
+	if err != nil {
+		return err
+	}
+	workspaceId, err := resolveWorkspaceIdForTab(tabId)
+	if err != nil {
+		return err
 	}
 
 	wshCmd := wshrpc.CommandCreateBlockData{
@@ -70,7 +82,7 @@ func editorRun(cmd *cobra.Command, args []string) (rtnErr error) {
 			},
 		},
 		Magnified: editMagnified,
-		Focused:   true,
+		Focused:   !editorNoFocus,
 	}
 	if RpcContext.Conn != "" {
 		wshCmd.BlockDef.Meta[waveobj.MetaKey_Connection] = RpcContext.Conn
@@ -78,6 +90,11 @@ func editorRun(cmd *cobra.Command, args []string) (rtnErr error) {
 	blockRef, err := wshclient.CreateBlockCommand(RpcClient, wshCmd, &wshrpc.RpcOpts{Timeout: 2000})
 	if err != nil {
 		return fmt.Errorf("running view command: %w", err)
+	}
+	if editorJSON {
+		if err := printBlockCreationResult(true, workspaceId, tabId, blockRef.OID); err != nil {
+			return err
+		}
 	}
 	doneCh := make(chan bool)
 	RpcClient.EventListener.On(wps.Event_BlockClose, func(event *wps.WaveEvent) {

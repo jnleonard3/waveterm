@@ -219,12 +219,53 @@ func getNextTabName(tabNames []string) string {
 	return "T" + strconv.Itoa(maxNum+1)
 }
 
-// returns tabid
+type CreateTabOpts struct {
+	WorkspaceId     string
+	TabName         string
+	ActivateTab     bool
+	IsInitialLaunch bool
+	BlockDef        *waveobj.BlockDef
+	RtOpts          *waveobj.RuntimeOpts
+}
+
+type CreateTabResult struct {
+	WorkspaceId string
+	TabId       string
+	BlockIds    []string
+}
+
+// CreateTab keeps the prior signature used by UI services.
 func CreateTab(ctx context.Context, workspaceId string, tabName string, activateTab bool, isInitialLaunch bool) (string, error) {
+	result, err := CreateTabWithOpts(ctx, CreateTabOpts{
+		WorkspaceId:     workspaceId,
+		TabName:         tabName,
+		ActivateTab:     activateTab,
+		IsInitialLaunch: isInitialLaunch,
+	})
+	if err != nil {
+		if result != nil && result.TabId != "" {
+			return result.TabId, err
+		}
+		return "", err
+	}
+	return result.TabId, nil
+}
+
+func CreateTabWithOpts(ctx context.Context, opts CreateTabOpts) (rtnResult *CreateTabResult, rtnErr error) {
+	if opts.WorkspaceId == "" {
+		return nil, fmt.Errorf("workspaceid is required")
+	}
+	if opts.BlockDef != nil {
+		if err := ValidateBlockDef(opts.BlockDef); err != nil {
+			return nil, err
+		}
+	}
+
+	tabName := opts.TabName
 	if tabName == "" {
-		ws, err := GetWorkspace(ctx, workspaceId)
+		ws, err := GetWorkspace(ctx, opts.WorkspaceId)
 		if err != nil {
-			return "", fmt.Errorf("workspace %s not found: %w", workspaceId, err)
+			return nil, fmt.Errorf("workspace %s not found: %w", opts.WorkspaceId, err)
 		}
 		tabNames := make([]string, 0, len(ws.TabIds))
 		for _, tabId := range ws.TabIds {
@@ -237,57 +278,124 @@ func CreateTab(ctx context.Context, workspaceId string, tabName string, activate
 		tabName = getNextTabName(tabNames)
 	}
 
-	tab, err := createTabObj(ctx, workspaceId, tabName, nil)
+	tab, err := createTabObj(ctx, opts.WorkspaceId, tabName, nil)
 	if err != nil {
-		return "", fmt.Errorf("error creating tab: %w", err)
-	}
-	if activateTab {
-		err = SetActiveTab(ctx, workspaceId, tab.OID)
-		if err != nil {
-			return "", fmt.Errorf("error setting active tab: %w", err)
-		}
+		return nil, fmt.Errorf("error creating tab: %w", err)
 	}
 
+	result := &CreateTabResult{
+		WorkspaceId: opts.WorkspaceId,
+		TabId:       tab.OID,
+	}
+	createdTabId := tab.OID
+	creationStage := "tab"
+	defer func() {
+		if rtnErr == nil || createdTabId == "" {
+			return
+		}
+		cleanupCtx := ctx
+		if cleanupCtx.Err() != nil {
+			var cancel context.CancelFunc
+			cleanupCtx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+		}
+		_, cleanupErr := DeleteTab(cleanupCtx, opts.WorkspaceId, createdTabId, false)
+		if cleanupErr != nil {
+			rtnErr = fmt.Errorf("%w (cleanup failed after %s for tab %s: %v)", rtnErr, creationStage, createdTabId, cleanupErr)
+			return
+		}
+		result = nil
+	}()
+
 	// No need to apply an initial layout for the initial launch, since the starter layout will get applied after onboarding modal dismissal
-	if !isInitialLaunch {
-		err = ApplyPortableLayout(ctx, tab.OID, GetNewTabLayout(), true)
-		if err != nil {
-			return tab.OID, fmt.Errorf("error applying new tab layout: %w", err)
+	if !opts.IsInitialLaunch {
+		if opts.BlockDef != nil {
+			creationStage = "seed-block"
+			rtOpts := opts.RtOpts
+			if rtOpts == nil {
+				rtOpts = &waveobj.RuntimeOpts{}
+			}
+			blockData, err := CreateBlock(ctx, tab.OID, opts.BlockDef, rtOpts)
+			if err != nil {
+				return result, fmt.Errorf("error creating initial block: %w", err)
+			}
+			creationStage = "seed-layout"
+			err = QueueLayoutActionForTab(ctx, tab.OID, waveobj.LayoutActionData{
+				ActionType: LayoutActionDataType_Insert,
+				BlockId:    blockData.OID,
+				Focused:    true,
+			})
+			if err != nil {
+				return result, fmt.Errorf("error queuing initial layout action: %w", err)
+			}
+			result.BlockIds = []string{blockData.OID}
+		} else {
+			creationStage = "default-layout"
+			err = ApplyPortableLayout(ctx, tab.OID, GetNewTabLayout(), true)
+			if err != nil {
+				return result, fmt.Errorf("error applying new tab layout: %w", err)
+			}
+			tabAfterLayout, getErr := wstore.DBMustGet[*waveobj.Tab](ctx, tab.OID)
+			if getErr != nil {
+				return result, fmt.Errorf("error reading tab after layout: %w", getErr)
+			}
+			result.BlockIds = append([]string{}, tabAfterLayout.BlockIds...)
 		}
 		tabBg := getTabBackground()
 		if tabBg != "" {
+			creationStage = "tab-background"
 			tabORef := waveobj.ORefFromWaveObj(tab)
-			wstore.UpdateObjectMeta(ctx, *tabORef, waveobj.MetaMapType{waveobj.MetaKey_TabBackground: tabBg}, false)
+			err = wstore.UpdateObjectMeta(ctx, *tabORef, waveobj.MetaMapType{waveobj.MetaKey_TabBackground: tabBg}, false)
+			if err != nil {
+				return result, fmt.Errorf("error setting tab background: %w", err)
+			}
 		}
 	}
+
+	createdTabId = "" // construction succeeded; do not delete on later activation errors
+	if opts.ActivateTab {
+		err = SetActiveTab(ctx, opts.WorkspaceId, tab.OID)
+		if err != nil {
+			return result, fmt.Errorf("error setting active tab: %w", err)
+		}
+	}
+
 	telemetry.GoUpdateActivityWrap(wshrpc.ActivityUpdate{NewTab: 1}, "createtab")
 	telemetry.GoRecordTEventWrap(&telemetrydata.TEvent{
 		Event: "action:createtab",
 	})
-	return tab.OID, nil
+	return result, nil
 }
 
 func createTabObj(ctx context.Context, workspaceId string, name string, meta waveobj.MetaMapType) (*waveobj.Tab, error) {
-	ws, err := GetWorkspace(ctx, workspaceId)
-	if err != nil {
-		return nil, fmt.Errorf("workspace %s not found: %w", workspaceId, err)
-	}
-	layoutStateId := uuid.NewString()
-	tab := &waveobj.Tab{
-		OID:         uuid.NewString(),
-		Name:        name,
-		BlockIds:    []string{},
-		LayoutState: layoutStateId,
-		Meta:        meta,
-	}
-	layoutState := &waveobj.LayoutState{
-		OID: layoutStateId,
-	}
-	ws.TabIds = append(ws.TabIds, tab.OID)
-	wstore.DBInsert(ctx, tab)
-	wstore.DBInsert(ctx, layoutState)
-	wstore.DBUpdate(ctx, ws)
-	return tab, nil
+	return wstore.WithTxRtn(ctx, func(tx *wstore.TxWrap) (*waveobj.Tab, error) {
+		ws, err := GetWorkspace(tx.Context(), workspaceId)
+		if err != nil {
+			return nil, fmt.Errorf("workspace %s not found: %w", workspaceId, err)
+		}
+		layoutStateId := uuid.NewString()
+		tab := &waveobj.Tab{
+			OID:         uuid.NewString(),
+			Name:        name,
+			BlockIds:    []string{},
+			LayoutState: layoutStateId,
+			Meta:        meta,
+		}
+		layoutState := &waveobj.LayoutState{
+			OID: layoutStateId,
+		}
+		ws.TabIds = append(ws.TabIds, tab.OID)
+		if err := wstore.DBInsert(tx.Context(), tab); err != nil {
+			return nil, err
+		}
+		if err := wstore.DBInsert(tx.Context(), layoutState); err != nil {
+			return nil, err
+		}
+		if err := wstore.DBUpdate(tx.Context(), ws); err != nil {
+			return nil, err
+		}
+		return tab, nil
+	})
 }
 
 // Must delete all blocks individually first.
@@ -351,18 +459,22 @@ func DeleteTab(ctx context.Context, workspaceId string, tabId string, recursive 
 }
 
 func SetActiveTab(ctx context.Context, workspaceId string, tabId string) error {
-	if tabId != "" && workspaceId != "" {
-		workspace, err := GetWorkspace(ctx, workspaceId)
-		if err != nil {
-			return fmt.Errorf("workspace %s not found: %w", workspaceId, err)
-		}
-		tab, _ := wstore.DBGet[*waveobj.Tab](ctx, tabId)
-		if tab == nil {
-			return fmt.Errorf("tab not found: %q", tabId)
-		}
-		workspace.ActiveTabId = tabId
-		wstore.DBUpdate(ctx, workspace)
+	if tabId == "" || workspaceId == "" {
+		return fmt.Errorf("workspaceid and tabid are required")
 	}
+	workspace, err := GetWorkspace(ctx, workspaceId)
+	if err != nil {
+		return fmt.Errorf("workspace %s not found: %w", workspaceId, err)
+	}
+	tab, _ := wstore.DBGet[*waveobj.Tab](ctx, tabId)
+	if tab == nil {
+		return fmt.Errorf("tab not found: %q", tabId)
+	}
+	if utilfn.FindStringInSlice(workspace.TabIds, tabId) == -1 {
+		return fmt.Errorf("tab %s not found in workspace %s", tabId, workspaceId)
+	}
+	workspace.ActiveTabId = tabId
+	wstore.DBUpdate(ctx, workspace)
 	return nil
 }
 

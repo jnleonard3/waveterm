@@ -156,12 +156,121 @@ func (ws *WshServer) GetMetaCommand(ctx context.Context, data wshrpc.CommandGetM
 }
 
 func (ws *WshServer) UpdateTabNameCommand(ctx context.Context, tabId string, newName string) error {
+	if tabId == "" {
+		return fmt.Errorf("tabid is required")
+	}
+	if newName == "" {
+		return fmt.Errorf("name is required")
+	}
+	tab, err := wstore.DBGet[*waveobj.Tab](ctx, tabId)
+	if err != nil {
+		return fmt.Errorf("error getting tab: %w", err)
+	}
+	if tab == nil {
+		return fmt.Errorf("tab not found: %q", tabId)
+	}
 	oref := waveobj.ORef{OType: waveobj.OType_Tab, OID: tabId}
-	err := wstore.UpdateTabName(ctx, tabId, newName)
+	err = wstore.UpdateTabName(ctx, tabId, newName)
 	if err != nil {
 		return fmt.Errorf("error updating tab name: %w", err)
 	}
 	wcore.SendWaveObjUpdate(oref)
+	return nil
+}
+
+func (ws *WshServer) resolveWorkspaceIdForCreate(ctx context.Context, workspaceId string) (string, error) {
+	if workspaceId != "" {
+		_, err := wcore.GetWorkspace(ctx, workspaceId)
+		if err != nil {
+			return "", fmt.Errorf("workspace %s not found: %w", workspaceId, err)
+		}
+		return workspaceId, nil
+	}
+	handler := wshutil.GetRpcResponseHandlerFromContext(ctx)
+	if handler == nil {
+		return "", fmt.Errorf("no workspace id specified and no rpc context available")
+	}
+	blockId := handler.GetRpcContext().BlockId
+	if blockId == "" {
+		return "", fmt.Errorf("no workspace id specified and caller has no block context")
+	}
+	tabId, err := wstore.DBFindTabForBlockId(ctx, blockId)
+	if err != nil {
+		return "", fmt.Errorf("error finding tab for caller block: %w", err)
+	}
+	wsId, err := wstore.DBFindWorkspaceForTabId(ctx, tabId)
+	if err != nil {
+		return "", fmt.Errorf("error finding workspace for caller tab: %w", err)
+	}
+	if wsId == "" {
+		return "", fmt.Errorf("could not resolve workspace from caller context")
+	}
+	return wsId, nil
+}
+
+func (ws *WshServer) CreateTabCommand(ctx context.Context, data wshrpc.CommandCreateTabData) (*wshrpc.CommandCreateTabRtnData, error) {
+	ctx = waveobj.ContextWithUpdates(ctx)
+	workspaceId, err := ws.resolveWorkspaceIdForCreate(ctx, data.WorkspaceId)
+	if err != nil {
+		return nil, err
+	}
+	if data.BlockDef != nil {
+		if err := wcore.ValidateBlockDef(data.BlockDef); err != nil {
+			return nil, fmt.Errorf("invalid blockdef: %w", err)
+		}
+	}
+	result, err := wcore.CreateTabWithOpts(ctx, wcore.CreateTabOpts{
+		WorkspaceId: workspaceId,
+		TabName:     data.Name,
+		ActivateTab: !data.NoActivate,
+		BlockDef:    data.BlockDef,
+		RtOpts:      data.RtOpts,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error creating tab: %w", err)
+	}
+	updates := waveobj.ContextGetUpdatesRtn(ctx)
+	wps.Broker.SendUpdateEvents(updates)
+	if !data.NoActivate {
+		wcore.SendActiveTabUpdate(ctx, result.WorkspaceId, result.TabId)
+	}
+	rtn := &wshrpc.CommandCreateTabRtnData{
+		WorkspaceId: result.WorkspaceId,
+		TabId:       result.TabId,
+		BlockIds:    result.BlockIds,
+	}
+	if len(result.BlockIds) == 1 {
+		rtn.BlockId = result.BlockIds[0]
+	}
+	return rtn, nil
+}
+
+func (ws *WshServer) FocusTabCommand(ctx context.Context, data wshrpc.CommandFocusTabData) error {
+	if data.TabId == "" {
+		return fmt.Errorf("tabid is required")
+	}
+	ctx = waveobj.ContextWithUpdates(ctx)
+	tab, err := wstore.DBGet[*waveobj.Tab](ctx, data.TabId)
+	if err != nil {
+		return fmt.Errorf("error getting tab: %w", err)
+	}
+	if tab == nil {
+		return fmt.Errorf("tab not found: %q", data.TabId)
+	}
+	workspaceId, err := wstore.DBFindWorkspaceForTabId(ctx, data.TabId)
+	if err != nil {
+		return fmt.Errorf("error finding workspace for tab: %w", err)
+	}
+	if workspaceId == "" {
+		return fmt.Errorf("workspace not found for tab %q", data.TabId)
+	}
+	err = wcore.SetActiveTab(ctx, workspaceId, data.TabId)
+	if err != nil {
+		return fmt.Errorf("error focusing tab: %w", err)
+	}
+	updates := waveobj.ContextGetUpdatesRtn(ctx)
+	wps.Broker.SendUpdateEvents(updates)
+	wcore.SendActiveTabUpdate(ctx, workspaceId, data.TabId)
 	return nil
 }
 
@@ -223,6 +332,19 @@ func (ws *WshServer) ResolveIdsCommand(ctx context.Context, data wshrpc.CommandR
 }
 
 func (ws *WshServer) CreateBlockCommand(ctx context.Context, data wshrpc.CommandCreateBlockData) (*waveobj.ORef, error) {
+	if data.TabId == "" {
+		return nil, fmt.Errorf("tabid is required")
+	}
+	if err := wcore.ValidateBlockDef(data.BlockDef); err != nil {
+		return nil, fmt.Errorf("invalid blockdef: %w", err)
+	}
+	tab, err := wstore.DBGet[*waveobj.Tab](ctx, data.TabId)
+	if err != nil {
+		return nil, fmt.Errorf("error getting tab: %w", err)
+	}
+	if tab == nil {
+		return nil, fmt.Errorf("tab not found: %q", data.TabId)
+	}
 	ctx = waveobj.ContextWithUpdates(ctx)
 	tabId := data.TabId
 	blockData, err := wcore.CreateBlock(ctx, tabId, data.BlockDef, data.RtOpts)

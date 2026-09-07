@@ -16,7 +16,12 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
 )
 
-var viewMagnified bool
+var (
+	viewMagnified bool
+	viewTabId     string
+	viewJSON      bool
+	viewNoFocus   bool
+)
 
 var viewCmd = &cobra.Command{
 	Use:     "view {file|directory|URL}",
@@ -35,8 +40,14 @@ var editCmd = &cobra.Command{
 
 func init() {
 	viewCmd.Flags().BoolVarP(&viewMagnified, "magnified", "m", false, "open view in magnified mode")
+	viewCmd.Flags().StringVar(&viewTabId, "tab", "", "target tab id (defaults to WAVETERM_TABID)")
+	viewCmd.Flags().BoolVar(&viewJSON, "json", false, "output creation result as JSON")
+	viewCmd.Flags().BoolVar(&viewNoFocus, "no-focus", false, "create block without focusing it")
 	rootCmd.AddCommand(viewCmd)
 	editCmd.Flags().BoolVarP(&viewMagnified, "magnified", "m", false, "open view in magnified mode")
+	editCmd.Flags().StringVar(&viewTabId, "tab", "", "target tab id (defaults to WAVETERM_TABID)")
+	editCmd.Flags().BoolVar(&viewJSON, "json", false, "output creation result as JSON")
+	editCmd.Flags().BoolVar(&viewNoFocus, "no-focus", false, "create block without focusing it")
 	rootCmd.AddCommand(editCmd)
 }
 
@@ -53,9 +64,13 @@ func viewRun(cmd *cobra.Command, args []string) (rtnErr error) {
 		OutputHelpMessage(cmd)
 		return fmt.Errorf("too many arguments.  wsh %s requires exactly one argument", cmdName)
 	}
-	tabId := getTabIdFromEnv()
-	if tabId == "" {
-		return fmt.Errorf("no WAVETERM_TABID env var set")
+	tabId, err := resolveTargetTabId(viewTabId)
+	if err != nil {
+		return err
+	}
+	workspaceId, err := resolveWorkspaceIdForTab(tabId)
+	if err != nil {
+		return err
 	}
 	fileArg := args[0]
 	conn := RpcContext.Conn
@@ -70,7 +85,7 @@ func viewRun(cmd *cobra.Command, args []string) (rtnErr error) {
 				},
 			},
 			Magnified: viewMagnified,
-			Focused:   true,
+			Focused:   !viewNoFocus,
 		}
 	} else {
 		absFile, err := filepath.Abs(fileArg)
@@ -97,7 +112,7 @@ func viewRun(cmd *cobra.Command, args []string) (rtnErr error) {
 				},
 			},
 			Magnified: viewMagnified,
-			Focused:   true,
+			Focused:   !viewNoFocus,
 		}
 		if cmdName == "edit" {
 			wshCmd.BlockDef.Meta[waveobj.MetaKey_Edit] = true
@@ -106,9 +121,12 @@ func viewRun(cmd *cobra.Command, args []string) (rtnErr error) {
 			wshCmd.BlockDef.Meta[waveobj.MetaKey_Connection] = conn
 		}
 	}
-	_, err := wshclient.CreateBlockCommand(RpcClient, *wshCmd, &wshrpc.RpcOpts{Timeout: 2000})
+	oref, err := wshclient.CreateBlockCommand(RpcClient, *wshCmd, &wshrpc.RpcOpts{Timeout: 2000})
 	if err != nil {
 		return fmt.Errorf("running view command: %w", err)
+	}
+	if viewJSON {
+		return printBlockCreationResult(true, workspaceId, tabId, oref.OID)
 	}
 	return nil
 }

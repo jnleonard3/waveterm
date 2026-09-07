@@ -315,6 +315,23 @@ declare global {
         blockdef: BlockDef;
     };
 
+    // wshrpc.CommandCreateTabData
+    type CommandCreateTabData = {
+        workspaceid?: string;
+        name?: string;
+        blockdef?: BlockDef;
+        rtopts?: RuntimeOpts;
+        noactivate?: boolean;
+    };
+
+    // wshrpc.CommandCreateTabRtnData
+    type CommandCreateTabRtnData = {
+        workspaceid: string;
+        tabid: string;
+        blockids: string[];
+        blockid?: string;
+    };
+
     // wshrpc.CommandDebugTermData
     type CommandDebugTermData = {
         blockid: string;
@@ -396,6 +413,11 @@ declare global {
         info: FileInfo;
         byterange?: string;
         streammeta: StreamMeta;
+    };
+
+    // wshrpc.CommandFocusTabData
+    type CommandFocusTabData = {
+        tabid: string;
     };
 
     // wshrpc.CommandGetMetaData
@@ -1589,6 +1611,7 @@ declare global {
         "debug:panictype"?: string;
         "block:view"?: string;
         "block:controller"?: string;
+        "block:subblock"?: boolean;
         "ai:backendtype"?: string;
         "ai:local"?: boolean;
         "wsh:cmd"?: string;

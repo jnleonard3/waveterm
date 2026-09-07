@@ -15,7 +15,12 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
 )
 
-var termMagnified bool
+var (
+	termMagnified bool
+	termTabId     string
+	termJSON      bool
+	termNoFocus   bool
+)
 
 var termCmd = &cobra.Command{
 	Use:     "term",
@@ -27,6 +32,9 @@ var termCmd = &cobra.Command{
 
 func init() {
 	termCmd.Flags().BoolVarP(&termMagnified, "magnified", "m", false, "open view in magnified mode")
+	termCmd.Flags().StringVar(&termTabId, "tab", "", "target tab id (defaults to WAVETERM_TABID)")
+	termCmd.Flags().BoolVar(&termJSON, "json", false, "output creation result as JSON")
+	termCmd.Flags().BoolVar(&termNoFocus, "no-focus", false, "create block without focusing it")
 	rootCmd.AddCommand(termCmd)
 }
 
@@ -56,9 +64,13 @@ func termRun(cmd *cobra.Command, args []string) (rtnErr error) {
 		return fmt.Errorf("getting absolute path: %w", err)
 	}
 
-	tabId := getTabIdFromEnv()
-	if tabId == "" {
-		return fmt.Errorf("no WAVETERM_TABID env var set")
+	tabId, err := resolveTargetTabId(termTabId)
+	if err != nil {
+		return err
+	}
+	workspaceId, err := resolveWorkspaceIdForTab(tabId)
+	if err != nil {
+		return err
 	}
 
 	createMeta := map[string]any{
@@ -75,11 +87,14 @@ func termRun(cmd *cobra.Command, args []string) (rtnErr error) {
 			Meta: createMeta,
 		},
 		Magnified: termMagnified,
-		Focused:   true,
+		Focused:   !termNoFocus,
 	}
 	oref, err := wshclient.CreateBlockCommand(RpcClient, createBlockData, nil)
 	if err != nil {
 		return fmt.Errorf("creating new terminal block: %w", err)
+	}
+	if termJSON {
+		return printBlockCreationResult(true, workspaceId, tabId, oref.OID)
 	}
 	WriteStdout("terminal block created: %s\n", oref)
 	return nil

@@ -25,10 +25,18 @@ You can open a preview block with the contents of any file or directory by runni
 ```sh
 wsh view [path]
 wsh view -m [path]           # opens in magnified block
+wsh view --tab <tabid> --json [path]
 ```
 
 You can use this command to easily preview images, markdown files, and directories. For code/text files this will open
 a codeedit block which you can use to quickly edit the file using Wave's embedded graphical editor.
+
+Flags:
+
+- `-m, --magnified` - open in magnified mode
+- `--tab <tabid>` - create in the specified tab (defaults to `WAVETERM_TABID`)
+- `--json` - print a lowercase JSON creation result
+- `--no-focus` - create without focusing the new block
 
 ---
 
@@ -37,11 +45,21 @@ a codeedit block which you can use to quickly edit the file using Wave's embedde
 ```sh
 wsh edit [path]
 wsh edit -m [path]           # opens in magnified block
+wsh edit --tab <tabid> --json [path]
 ```
 
-This will open up a codeedit block for the specified file. This is useful for quickly editing files on a local or remote machine in Wave's graphical editor. This command returns immediately after opening the block. 
+This will open up a codeedit block for the specified file. This is useful for quickly editing files on a local or remote machine in Wave's graphical editor. This command returns immediately after opening the block.
 
 For `$EDITOR` integration (e.g. with `git commit`), see [`wsh editor`](#editor) which blocks until the editor is closed.
+
+Flags:
+
+- `-m, --magnified` - open in magnified mode
+- `--tab <tabid>` - create in the specified tab (defaults to `WAVETERM_TABID`)
+- `--json` - print a lowercase JSON creation result
+- `--no-focus` - create without focusing the new block
+
+Automation scripts should prefer `edit` over `editor` when they need the creation result without waiting.
 
 ---
 
@@ -50,6 +68,7 @@ For `$EDITOR` integration (e.g. with `git commit`), see [`wsh editor`](#editor) 
 ```sh
 wsh editor [path]
 wsh editor -m [path]         # opens in magnified block
+wsh editor --tab <tabid> --json [path]
 ```
 
 This opens a codeedit block for the specified file and **blocks until the editor is closed**. This is useful for setting your `$EDITOR` environment variable so that CLI tools (e.g. `git commit`, `crontab -e`) open files in Wave's graphical editor:
@@ -59,6 +78,15 @@ export EDITOR="wsh editor"
 ```
 
 The file must already exist. Use `-m` to open the editor in magnified mode.
+
+When `--json` is set, Wave prints the creation JSON immediately after the block is created, then continues waiting for close.
+
+Flags:
+
+- `-m, --magnified` - open in magnified mode
+- `--tab <tabid>` - create in the specified tab (defaults to `WAVETERM_TABID`)
+- `--json` - print creation JSON before waiting
+- `--no-focus` - create without focusing the new block
 
 ---
 
@@ -358,6 +386,9 @@ Flags:
 - `-p, --paused` - create block in paused state
 - `-a, --append` - append output on command restart instead of clearing
 - `--cwd string` - set working directory for command
+- `--tab <tabid>` - create in the specified tab (defaults to `WAVETERM_TABID`)
+- `--json` - print a lowercase JSON creation result (`workspaceid`, `tabid`, `blockid`)
+- `--no-focus` - create without focusing the new block
 
 Examples:
 
@@ -379,6 +410,9 @@ wsh run -p -- ./server --dev
 
 # Run with custom close delay
 wsh run -x --delay 5000 -- ./deployment.sh
+
+# Target another tab and emit JSON
+wsh run --tab "$TABID" --json -- printf 'hello world'
 ```
 
 When using the `-x` or `-X` flags, the block will automatically close after the command completes. The `-x` flag only closes on successful completion (exit code 0), while `-X` closes regardless of exit status. The `--delay` flag controls how long to wait before closing (default 2000ms).
@@ -388,6 +422,81 @@ The `-p` flag creates the block in a paused state, allowing you to review the co
 :::tip
 You can use either `--` followed by your command and arguments, or the `-c` flag with a quoted command string. The `--` method is preferred when you want to preserve argument handling, while `-c` is useful for shell commands with pipes or redirections.
 :::
+
+---
+
+## createblock
+
+Create a block from a view name plus metadata key/value pairs, or from a JSON `BlockDef` file.
+
+```sh
+wsh createblock viewname key=value ...
+wsh createblock --block-file ./block.json
+wsh createblock --tab <tabid> --json --block-file -
+```
+
+The JSON form is a single `waveobj.BlockDef` object (lowercase fields). Example:
+
+```json
+{"meta":{"view":"web","url":"http://localhost:3000"}}
+```
+
+`--block-file -` reads JSON from stdin. Malformed JSON, multiple JSON values, a nil definition, or a missing `meta.view` are rejected. Extensible metadata keys are allowed; the view must be supported by the running Wave build.
+
+Flags:
+
+- `-m, --magnified` - create in magnified mode
+- `--tab <tabid>` - create in the specified tab (defaults to `WAVETERM_TABID`)
+- `--json` - print a lowercase JSON creation result
+- `--no-focus` - create without focusing the new block
+- `--block-file <file>` - JSON BlockDef path, or `-` for stdin
+
+---
+
+## tab
+
+Manage tabs: list, create, rename, focus, and reorder.
+
+### create
+
+```sh
+wsh tab create [--workspace ID] [--name NAME] [--json] [--no-activate]
+wsh tab create [--workspace ID] [--name NAME] [--cwd PATH] [--json] [--no-activate] -- COMMAND [ARG...]
+wsh tab create [--workspace ID] [--name NAME] --block-file FILE [--json] [--no-activate]
+```
+
+Without a command or `--block-file`, Wave applies the configured new-tab layout (and tab background). With `-- COMMAND ...` or `--block-file`, the tab is seeded with exactly that initial block and the default layout is not applied. Command args and `--block-file` are mutually exclusive.
+
+Successful `--json` output is one lowercase JSON object:
+
+```json
+{"workspaceid":"...","tabid":"...","blockids":["..."],"blockid":"..."}
+```
+
+`blockids` lists all initial blocks. `blockid` is included only when there is exactly one initial block. Without `--json`, only the tab id is printed.
+
+Workspace resolution: explicit `--workspace`, else `WAVETERM_WORKSPACEID`, else the caller's block/tab context on the server.
+
+### rename / focus / list / move
+
+```sh
+wsh tab rename [--tab ID] NAME
+wsh tab focus ID
+wsh tab list [--workspace ID] [--json]
+wsh tab move <tabid> --index <n>
+```
+
+`--no-activate` creates a tab without activating it. Deeper OS/window focus behavior is unchanged and may still move window focus when activation occurs.
+
+PowerShell example:
+
+```powershell
+$result = wsh tab create --name "Build investigation" --json -- go test ./... | ConvertFrom-Json
+wsh run --tab $result.tabid --json -- go test ./pkg/wcore
+wsh view --tab $result.tabid ./README.md
+wsh tab rename --tab $result.tabid "Build results"
+wsh tab focus $result.tabid
+```
 
 ---
 
@@ -427,6 +536,7 @@ The `web` command opens URLs in a web block within Wave Terminal.
 
 ```sh
 wsh web open [url] [-m] [-r blockid]
+wsh web open --tab <tabid> --json [url]
 ```
 
 You can open a specific URL or perform a search using the configured search engine.
@@ -435,6 +545,9 @@ Flags:
 
 - `-m, --magnified` - open the web block in magnified mode
 - `-r, --replace <blockid>` - replace an existing block instead of creating a new one
+- `--tab <tabid>` - create in the specified tab (defaults to `WAVETERM_TABID`)
+- `--json` - print a lowercase JSON creation result
+- `--no-focus` - create without focusing the new block
 
 Examples:
 

@@ -40,10 +40,16 @@ var webGetAll bool
 var webGetJson bool
 var webOpenMagnified bool
 var webOpenReplaceBlock string
+var webOpenTabId string
+var webOpenJSON bool
+var webOpenNoFocus bool
 
 func init() {
 	webOpenCmd.Flags().BoolVarP(&webOpenMagnified, "magnified", "m", false, "open view in magnified mode")
 	webOpenCmd.Flags().StringVarP(&webOpenReplaceBlock, "replace", "r", "", "replace block")
+	webOpenCmd.Flags().StringVar(&webOpenTabId, "tab", "", "target tab id (defaults to WAVETERM_TABID)")
+	webOpenCmd.Flags().BoolVar(&webOpenJSON, "json", false, "output creation result as JSON")
+	webOpenCmd.Flags().BoolVar(&webOpenNoFocus, "no-focus", false, "create block without focusing it")
 	webCmd.AddCommand(webOpenCmd)
 	webGetCmd.Flags().BoolVarP(&webGetInner, "inner", "", false, "get inner html (instead of outer)")
 	webGetCmd.Flags().BoolVarP(&webGetAll, "all", "", false, "get all matches (querySelectorAll)")
@@ -112,9 +118,13 @@ func webOpenRun(cmd *cobra.Command, args []string) (rtnErr error) {
 		return fmt.Errorf("cannot use --replace and --magnified together")
 	}
 
-	tabId := getTabIdFromEnv()
-	if tabId == "" {
-		return fmt.Errorf("no WAVETERM_TABID env var set")
+	tabId, err := resolveTargetTabId(webOpenTabId)
+	if err != nil {
+		return err
+	}
+	workspaceId, err := resolveWorkspaceIdForTab(tabId)
+	if err != nil {
+		return err
 	}
 
 	wshCmd := wshrpc.CommandCreateBlockData{
@@ -126,7 +136,7 @@ func webOpenRun(cmd *cobra.Command, args []string) (rtnErr error) {
 			},
 		},
 		Magnified: webOpenMagnified,
-		Focused:   true,
+		Focused:   !webOpenNoFocus,
 	}
 	if replaceBlockORef != nil {
 		wshCmd.TargetBlockId = replaceBlockORef.OID
@@ -135,6 +145,9 @@ func webOpenRun(cmd *cobra.Command, args []string) (rtnErr error) {
 	oref, err := wshclient.CreateBlockCommand(RpcClient, wshCmd, nil)
 	if err != nil {
 		return fmt.Errorf("creating block: %w", err)
+	}
+	if webOpenJSON {
+		return printBlockCreationResult(true, workspaceId, tabId, oref.OID)
 	}
 	WriteStdout("created block %s\n", oref)
 	return nil

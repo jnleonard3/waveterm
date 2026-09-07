@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -18,7 +19,7 @@ import (
 var tabCommand = &cobra.Command{
 	Use:   "tab",
 	Short: "Manage tabs",
-	Long:  "Commands for listing and reordering tabs.",
+	Long:  "Commands for listing, creating, renaming, focusing, and reordering tabs.",
 }
 
 var tabListCmd = &cobra.Command{
@@ -42,10 +43,48 @@ the same (no adding or dropping tabs).`,
 	PreRunE: preRunSetupRpcClient,
 }
 
+var tabCreateCmd = &cobra.Command{
+	Use:   "create [--workspace ID] [--name NAME] [--cwd PATH] [--block-file FILE] [--json] [--no-activate] [-- COMMAND [ARG...]]",
+	Short: "Create a new tab",
+	Long: `Create a tab in a workspace.
+
+With neither a command nor --block-file, Wave applies the configured new-tab layout.
+With -- COMMAND args, the tab is seeded with a single terminal command block.
+With --block-file, the tab is seeded with a single BlockDef JSON object.
+Command args and --block-file are mutually exclusive.`,
+	RunE:                  tabCreateRun,
+	PreRunE:               preRunSetupRpcClient,
+	DisableFlagsInUseLine: true,
+}
+
+var tabRenameCmd = &cobra.Command{
+	Use:                   "rename [--tab ID] NAME",
+	Short:                 "Rename a tab",
+	Args:                  cobra.ExactArgs(1),
+	RunE:                  tabRenameRun,
+	PreRunE:               preRunSetupRpcClient,
+	DisableFlagsInUseLine: true,
+}
+
+var tabFocusCmd = &cobra.Command{
+	Use:                   "focus ID",
+	Short:                 "Focus a tab",
+	Args:                  cobra.ExactArgs(1),
+	RunE:                  tabFocusRun,
+	PreRunE:               preRunSetupRpcClient,
+	DisableFlagsInUseLine: true,
+}
+
 var (
 	tabWorkspaceId string
 	tabListJSON    bool
 	tabMoveIndex   int
+	tabCreateName  string
+	tabCreateCwd   string
+	tabCreateBlock string
+	tabCreateJSON  bool
+	tabCreateNoAct bool
+	tabRenameTabId string
 )
 
 func init() {
@@ -57,6 +96,19 @@ func init() {
 	tabMoveCmd.Flags().IntVar(&tabMoveIndex, "index", -1, "0-based target position (required)")
 	tabMoveCmd.MarkFlagRequired("index")
 	tabCommand.AddCommand(tabMoveCmd)
+
+	tabCreateCmd.Flags().StringVar(&tabWorkspaceId, "workspace", "", "workspace id (defaults to WAVETERM_WORKSPACEID or caller context)")
+	tabCreateCmd.Flags().StringVar(&tabCreateName, "name", "", "tab name")
+	tabCreateCmd.Flags().StringVar(&tabCreateCwd, "cwd", "", "working directory for -- command seed")
+	tabCreateCmd.Flags().StringVar(&tabCreateBlock, "block-file", "", "JSON BlockDef file (use - for stdin)")
+	tabCreateCmd.Flags().BoolVar(&tabCreateJSON, "json", false, "output creation result as JSON")
+	tabCreateCmd.Flags().BoolVar(&tabCreateNoAct, "no-activate", false, "create tab without activating it")
+	tabCommand.AddCommand(tabCreateCmd)
+
+	tabRenameCmd.Flags().StringVar(&tabRenameTabId, "tab", "", "tab id (defaults to WAVETERM_TABID)")
+	tabCommand.AddCommand(tabRenameCmd)
+
+	tabCommand.AddCommand(tabFocusCmd)
 
 	rootCmd.AddCommand(tabCommand)
 }
@@ -201,6 +253,106 @@ func tabMoveRun(cmd *cobra.Command, args []string) (rtnErr error) {
 	}
 
 	WriteStdout("moved tab %s from index %d to %d\n", tabId, oldIdx, targetIdx)
+	return nil
+}
+
+func tabCreateRun(cmd *cobra.Command, args []string) (rtnErr error) {
+	defer func() {
+		sendActivity("tab-create", rtnErr == nil)
+	}()
+
+	dashIdx := cmd.ArgsLenAtDash()
+	hasDelim := dashIdx >= 0
+	var shellCmd string
+	var cmdArgs []string
+	if hasDelim {
+		cmdArgs = args[dashIdx:]
+		if len(cmdArgs) == 0 {
+			OutputHelpMessage(cmd)
+			return fmt.Errorf("no command provided after --")
+		}
+		shellCmd = cmdArgs[0]
+		cmdArgs = cmdArgs[1:]
+	} else if len(args) > 0 {
+		OutputHelpMessage(cmd)
+		return fmt.Errorf("unexpected arguments %v (use -- before a command)", args)
+	}
+	if hasDelim && tabCreateBlock != "" {
+		OutputHelpMessage(cmd)
+		return fmt.Errorf("cannot combine --block-file with command arguments")
+	}
+	if tabCreateCwd != "" && !hasDelim {
+		return fmt.Errorf("--cwd requires a command after --")
+	}
+
+	var blockDef *waveobj.BlockDef
+	var err error
+	if tabCreateBlock != "" {
+		blockDef, err = loadBlockDefFromFile(tabCreateBlock)
+		if err != nil {
+			return err
+		}
+	} else if hasDelim {
+		blockDef, err = makeRunCommandBlockDef(runCommandBlockOpts{
+			ShellCmd:    shellCmd,
+			CommandArgs: cmdArgs,
+			Cwd:         tabCreateCwd,
+			Conn:        RpcContext.Conn,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	workspaceId, err := resolveWorkspaceIdForCreate(tabWorkspaceId)
+	if err != nil {
+		return err
+	}
+
+	result, err := wshclient.CreateTabCommand(RpcClient, wshrpc.CommandCreateTabData{
+		WorkspaceId: workspaceId,
+		Name:        tabCreateName,
+		BlockDef:    blockDef,
+		NoActivate:  tabCreateNoAct,
+	}, &wshrpc.RpcOpts{Timeout: 10000})
+	if err != nil {
+		return fmt.Errorf("creating tab: %w", err)
+	}
+	return printTabCreationResult(tabCreateJSON, result)
+}
+
+func tabRenameRun(cmd *cobra.Command, args []string) (rtnErr error) {
+	defer func() {
+		sendActivity("tab-rename", rtnErr == nil)
+	}()
+
+	name := args[0]
+	tabId, err := resolveTargetTabId(tabRenameTabId)
+	if err != nil {
+		return err
+	}
+	err = wshclient.UpdateTabNameCommand(RpcClient, tabId, name, &wshrpc.RpcOpts{Timeout: 2000})
+	if err != nil {
+		return fmt.Errorf("renaming tab: %w", err)
+	}
+	return nil
+}
+
+func tabFocusRun(cmd *cobra.Command, args []string) (rtnErr error) {
+	defer func() {
+		sendActivity("tab-focus", rtnErr == nil)
+	}()
+
+	tabId := args[0]
+	if strings.TrimSpace(tabId) == "" {
+		return fmt.Errorf("tab id cannot be empty")
+	}
+	err := wshclient.FocusTabCommand(RpcClient, wshrpc.CommandFocusTabData{
+		TabId: tabId,
+	}, &wshrpc.RpcOpts{Timeout: 5000})
+	if err != nil {
+		return fmt.Errorf("focusing tab: %w", err)
+	}
 	return nil
 }
 

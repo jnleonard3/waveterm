@@ -94,6 +94,8 @@ type WshRpcInterface interface {
 	FetchSuggestionsCommand(ctx context.Context, data FetchSuggestionsData) (*FetchSuggestionsResponse, error)
 	DisposeSuggestionsCommand(ctx context.Context, widgetId string) error
 	GetTabCommand(ctx context.Context, tabId string) (*waveobj.Tab, error)
+	CreateTabCommand(ctx context.Context, data CommandCreateTabData) (*CommandCreateTabRtnData, error)
+	FocusTabCommand(ctx context.Context, data CommandFocusTabData) error
 	UpdateTabNameCommand(ctx context.Context, tabId string, newName string) error
 	UpdateWorkspaceTabIdsCommand(ctx context.Context, workspaceId string, tabIds []string) error
 	GetAllBadgesCommand(ctx context.Context) ([]baseds.BadgeEvent, error)
@@ -293,6 +295,25 @@ type CommandCreateBlockData struct {
 	TargetAction  string               `json:"targetaction,omitempty"` // "replace", "splitright", "splitdown", "splitleft", "splitup"
 }
 
+type CommandCreateTabData struct {
+	WorkspaceId string               `json:"workspaceid,omitempty"`
+	Name        string               `json:"name,omitempty"`
+	BlockDef    *waveobj.BlockDef    `json:"blockdef,omitempty"`
+	RtOpts      *waveobj.RuntimeOpts `json:"rtopts,omitempty"`
+	NoActivate  bool                 `json:"noactivate,omitempty"`
+}
+
+type CommandCreateTabRtnData struct {
+	WorkspaceId string   `json:"workspaceid"`
+	TabId       string   `json:"tabid"`
+	BlockIds    []string `json:"blockids"`
+	BlockId     string   `json:"blockid,omitempty"`
+}
+
+type CommandFocusTabData struct {
+	TabId string `json:"tabid"`
+}
+
 type CommandCreateSubBlockData struct {
 	ParentBlockId string            `json:"parentblockid"`
 	BlockDef      *waveobj.BlockDef `json:"blockdef"`
@@ -340,7 +361,6 @@ type CommandEventReadHistoryData struct {
 	Scope    string `json:"scope"`
 	MaxItems int    `json:"maxitems"`
 }
-
 
 type CpuDataRequest struct {
 	Id    string `json:"id"`
