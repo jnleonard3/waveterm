@@ -57,11 +57,11 @@
        gradientUnits="userSpaceOnUse">
       <stop
          offset="0.1418"
-         stop-color="#1F4D22"
+         stop-color="#B91C1C"
          id="stop2" />
       <stop
          offset="0.8656"
-         stop-color="#418D31"
+         stop-color="#EF4444"
          id="stop3" />
     </linearGradient>
     <linearGradient
@@ -73,11 +73,11 @@
        gradientUnits="userSpaceOnUse">
       <stop
          offset="0.2223"
-         stop-color="#418D31"
+         stop-color="#EF4444"
          id="stop4" />
       <stop
          offset="0.7733"
-         stop-color="#58C142"
+         stop-color="#F87171"
          id="stop5" />
     </linearGradient>
   </defs>

@@ -4,10 +4,11 @@
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import * as electron from "electron";
+import path from "path";
 import { fireAndForget } from "../frontend/util/util";
 import { focusedBuilderWindow, getBuilderWindowById } from "./emain-builder";
 import { openBuilderWindow } from "./emain-ipc";
-import { isDev, unamePlatform } from "./emain-platform";
+import { getElectronAppBasePath, isDev, unamePlatform } from "./emain-platform";
 import { clearTabCache } from "./emain-tabview";
 import { decreaseZoomLevel, increaseZoomLevel, resetZoomLevel } from "./emain-util";
 import {
@@ -512,6 +513,11 @@ const dockMenu = electron.Menu.buildFromTemplate([
 
 function makeDockTaskbar() {
     if (unamePlatform == "darwin") {
+        // Packaged macOS uses build/icon.icns; development runs still show the host Electron icon
+        // unless we set the Dock image explicitly.
+        if (isDev) {
+            electron.app.dock.setIcon(path.join(getElectronAppBasePath(), "public/logos/wave-logo-dark.png"));
+        }
         electron.app.dock.setMenu(dockMenu);
     }
 }

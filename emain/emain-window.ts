@@ -203,6 +203,9 @@ export class WaveBrowserWindow extends BaseWindow {
                 symbolColor: "#c3c8c2",
                 height: 32,
             };
+            // Explicit window icon so Windows taskbar/titlebar use red Wave artwork in
+            // development runs (packaged builds also consume build/icon.ico).
+            winOpts.icon = path.join(getElectronAppBasePath(), "public/logos/wave-logo-dark.png");
             if (isTransparent) {
                 winOpts.transparent = true;
             } else if (isBlur) {

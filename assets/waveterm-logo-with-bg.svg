@@ -1,9 +1,6 @@
 <svg width="74" height="73" viewBox="0 0 74 73" fill="none" xmlns="http://www.w3.org/2000/svg">
 <g id="Icon Center Image Artwork">
-<g id="Guide - Hide">
-<rect x="1" width="44.7379" height="44.7379" fill="#EA33EC" fill-opacity="0.1"/>
-<rect x="3.18447" y="2.18447" width="40.3689" height="40.3689" stroke="#EA33EC" stroke-opacity="0.09" stroke-width="4.36893"/>
-</g>
+<!-- Guide layer omitted from export (was id="Guide - Hide") -->
 <g id="wave-logo_appicon 1">
 <path id="Vector" d="M73.8156 -0.808594H0.191406V72.8156H73.8156V-0.808594Z" fill="black"/>
 <g id="Group">
@@ -18,12 +15,12 @@
 </g>
 <defs>
 <linearGradient id="paint0_linear_1373_32879" x1="11.1241" y1="30.1035" x2="59.6372" y2="30.1035" gradientUnits="userSpaceOnUse">
-<stop offset="0.1418" stop-color="#1F4D22"/>
-<stop offset="0.8656" stop-color="#418D31"/>
+<stop offset="0.1418" stop-color="#B91C1C"/>
+<stop offset="0.8656" stop-color="#EF4444"/>
 </linearGradient>
 <linearGradient id="paint1_linear_1373_32879" x1="14.3628" y1="41.8964" x2="62.8759" y2="41.8964" gradientUnits="userSpaceOnUse">
-<stop offset="0.2223" stop-color="#418D31"/>
-<stop offset="0.7733" stop-color="#58C142"/>
+<stop offset="0.2223" stop-color="#EF4444"/>
+<stop offset="0.7733" stop-color="#F87171"/>
 </linearGradient>
 </defs>
 </svg>
