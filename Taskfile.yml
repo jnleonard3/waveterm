@@ -124,12 +124,14 @@ tasks:
     package:
         desc: Package the application for the current platform.
         cmds:
+            # `deps` run concurrently. Cleaning must finish before any task that
+            # generates dist artifacts, otherwise it can remove binaries while
+            # electron-builder is staging the application.
+            - task: clean
+            - task: npm:install
+            - task: build:backend
+            - task: build:tsunamiscaffold
             - npm run build:prod && npm exec electron-builder -- -c electron-builder.config.cjs -p never {{.CLI_ARGS}}
-        deps:
-            - clean
-            - npm:install
-            - build:backend
-            - build:tsunamiscaffold
 
     build:frontend:dev:
         desc: Build the frontend in development mode.
