@@ -1312,6 +1312,16 @@ declare global {
         filteredcount?: number;
     };
 
+    type ProcessStatusData = {
+        script: string;
+        cwd: string;
+        running: boolean;
+        restartcount: number;
+        restartlimithit: boolean;
+        lastexit?: string;
+        logs: string;
+    };
+
     // wshrpc.ProcessSummary
     type ProcessSummary = {
         total: number;
@@ -1409,6 +1419,8 @@ declare global {
         "app:disablectrlshiftdisplay"?: boolean;
         "app:focusfollowscursor"?: string;
         "app:tabbar"?: string;
+        "app:process"?: string;
+        "app:process:cwd"?: string;
         "feature:waveappbuilder"?: boolean;
         "ai:*"?: boolean;
         "ai:preset"?: string;

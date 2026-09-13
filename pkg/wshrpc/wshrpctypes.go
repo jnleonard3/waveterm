@@ -28,6 +28,16 @@ type MultiArg struct {
 	Args []any `json:"args"`
 }
 
+type ProcessStatusData struct {
+	Script          string `json:"script"`
+	Cwd             string `json:"cwd"`
+	Running         bool   `json:"running"`
+	RestartCount    int    `json:"restartcount"`
+	RestartLimitHit bool   `json:"restartlimithit"`
+	LastExit        string `json:"lastexit,omitempty"`
+	Logs            string `json:"logs"`
+}
+
 // Instructions for adding a new RPC call
 // * methods must end with Command
 // * methods must take context as their first parameter
@@ -78,6 +88,9 @@ type WshRpcInterface interface {
 	SetConnectionsConfigCommand(ctx context.Context, data ConnConfigRequest) error
 	GetFullConfigCommand(ctx context.Context) (wconfig.FullConfigType, error)
 	GetWaveAIModeConfigCommand(ctx context.Context) (wconfig.AIModeConfigUpdate, error)
+	ProcessStatusCommand(ctx context.Context) (ProcessStatusData, error)
+	ProcessStartCommand(ctx context.Context) error
+	ProcessStopCommand(ctx context.Context) error
 	BlockInfoCommand(ctx context.Context, blockId string) (*BlockInfoData, error)
 	DebugTermCommand(ctx context.Context, data CommandDebugTermData) (*CommandDebugTermRtnData, error)
 	BlocksListCommand(ctx context.Context, data BlocksListRequest) ([]BlocksListEntry, error)

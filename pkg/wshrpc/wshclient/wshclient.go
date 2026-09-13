@@ -670,6 +670,20 @@ func PathCommand(w *wshutil.WshRpc, data wshrpc.PathCommandData, opts *wshrpc.Rp
 	return resp, err
 }
 
+func ProcessStartCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "processstart", nil, opts)
+	return err
+}
+
+func ProcessStatusCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (wshrpc.ProcessStatusData, error) {
+	return sendRpcRequestCallHelper[wshrpc.ProcessStatusData](w, "processstatus", nil, opts)
+}
+
+func ProcessStopCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "processstop", nil, opts)
+	return err
+}
+
 // command "publishapp", wshserver.PublishAppCommand
 func PublishAppCommand(w *wshutil.WshRpc, data wshrpc.CommandPublishAppData, opts *wshrpc.RpcOpts) (*wshrpc.CommandPublishAppRtnData, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.CommandPublishAppRtnData](w, "publishapp", data, opts)
@@ -1083,5 +1097,3 @@ func WslStatusCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]wshrpc.ConnSta
 	resp, err := sendRpcRequestCallHelper[[]wshrpc.ConnStatus](w, "wslstatus", nil, opts)
 	return resp, err
 }
-
-

@@ -33,6 +33,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/genconn"
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
+	"github.com/wavetermdev/waveterm/pkg/processmanager"
 	"github.com/wavetermdev/waveterm/pkg/remote"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/remote/fileshare/wshfs"
@@ -690,6 +691,19 @@ func (ws *WshServer) GetWaveAIModeConfigCommand(ctx context.Context) (wconfig.AI
 	fullConfig := wconfig.GetWatcher().GetFullConfig()
 	resolvedConfigs := aiusechat.ComputeResolvedAIModeConfigs(fullConfig)
 	return wconfig.AIModeConfigUpdate{Configs: resolvedConfigs}, nil
+}
+
+func (ws *WshServer) ProcessStatusCommand(ctx context.Context) (wshrpc.ProcessStatusData, error) {
+	return processmanager.Get().Status(), nil
+}
+
+func (ws *WshServer) ProcessStartCommand(ctx context.Context) error {
+	return processmanager.Get().Start()
+}
+
+func (ws *WshServer) ProcessStopCommand(ctx context.Context) error {
+	processmanager.Get().Stop()
+	return nil
 }
 
 func (ws *WshServer) ConnStatusCommand(ctx context.Context) ([]wshrpc.ConnStatus, error) {

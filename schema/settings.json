@@ -50,6 +50,8 @@
             "left"
           ]
         },
+        "app:process": { "type": "string" },
+        "app:process:cwd": { "type": "string" },
         "feature:waveappbuilder": {
           "type": "boolean"
         },

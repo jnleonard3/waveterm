@@ -288,6 +288,14 @@ const SettingsFloatingWindow = memo(
                 },
             },
             {
+                icon: "play",
+                label: "Process",
+                onClick: () => {
+                    env.createBlock({ meta: { view: "process" } }, false, true);
+                    onClose();
+                },
+            },
+            {
                 icon: "lightbulb",
                 label: "Tips",
                 onClick: () => {

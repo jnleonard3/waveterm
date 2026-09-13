@@ -672,6 +672,21 @@ export class RpcApiType {
         return client.wshRpcCall("path", data, opts);
     }
 
+    ProcessStartCommand(client: WshClient, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "processstart", null, opts);
+        return client.wshRpcCall("processstart", null, opts);
+    }
+
+    ProcessStatusCommand(client: WshClient, opts?: RpcOpts): Promise<ProcessStatusData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "processstatus", null, opts);
+        return client.wshRpcCall("processstatus", null, opts);
+    }
+
+    ProcessStopCommand(client: WshClient, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "processstop", null, opts);
+        return client.wshRpcCall("processstop", null, opts);
+    }
+
     // command "publishapp" [call]
     PublishAppCommand(client: WshClient, data: CommandPublishAppData, opts?: RpcOpts): Promise<CommandPublishAppRtnData> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "publishapp", data, opts);
