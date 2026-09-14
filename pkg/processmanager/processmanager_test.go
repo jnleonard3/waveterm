@@ -4,6 +4,7 @@
 package processmanager
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -61,5 +62,30 @@ func TestProcessEnvKeepsJWTOutOfStatusAndLogs(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("token missing from child environment")
+	}
+}
+
+func TestProcessEnvAddsWshDirectoryToPath(t *testing.T) {
+	const wshBinDir = "/wave-data/bin"
+	env := processEnvWithWsh([]string{
+		"Path=/parent/bin",
+		wshutil.WaveJwtTokenVarName + "=old-token",
+	}, "new-token", wshBinDir)
+
+	var path, jwt string
+	for _, entry := range env {
+		key, value, _ := strings.Cut(entry, "=")
+		if strings.EqualFold(key, "PATH") {
+			path = value
+		}
+		if key == wshutil.WaveJwtTokenVarName {
+			jwt = value
+		}
+	}
+	if want := wshBinDir + string(os.PathListSeparator) + "/parent/bin"; path != want {
+		t.Fatalf("PATH = %q, want %q", path, want)
+	}
+	if jwt != "new-token" {
+		t.Fatalf("JWT = %q, want replacement token", jwt)
 	}
 }

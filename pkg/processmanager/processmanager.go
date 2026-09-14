@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -160,7 +161,36 @@ func (m *manager) startLocked() {
 }
 
 func processEnv(jwt string) []string {
-	return append(os.Environ(), wshutil.WaveJwtTokenVarName+"="+jwt)
+	return processEnvWithWsh(os.Environ(), jwt, filepath.Join(wavebase.GetWaveDataDir(), "bin"))
+}
+
+// processEnvWithWsh gives scripts the same wsh lookup path as Wave's integrated
+// shells, while keeping the JWT exclusively in the child environment.
+func processEnvWithWsh(env []string, jwt, wshBinDir string) []string {
+	pathKey := "PATH"
+	currentPath := ""
+	result := make([]string, 0, len(env)+2)
+	for _, entry := range env {
+		key, value, found := strings.Cut(entry, "=")
+		if !found {
+			result = append(result, entry)
+			continue
+		}
+		switch {
+		case strings.EqualFold(key, "PATH"):
+			pathKey = key // Preserve the casing used by the parent environment.
+			currentPath = value
+		case strings.EqualFold(key, wshutil.WaveJwtTokenVarName):
+			// Replace any inherited token rather than exposing two credentials.
+		default:
+			result = append(result, entry)
+		}
+	}
+	path := wshBinDir
+	if currentPath != "" {
+		path += string(os.PathListSeparator) + currentPath
+	}
+	return append(result, pathKey+"="+path, wshutil.WaveJwtTokenVarName+"="+jwt)
 }
 
 func (m *manager) wait(cmd *exec.Cmd) {
