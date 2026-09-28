@@ -30,11 +30,19 @@ const (
 	restartDelay  = time.Second
 )
 
+// processGroup kills the entire process tree spawned for a supervised
+// command, not just the immediate child. Platform-specific implementations
+// live in processmanager_windows.go and processmanager_unix.go.
+type processGroup interface {
+	Kill() error
+}
+
 type manager struct {
 	mu              sync.Mutex
 	script          string
 	cwd             string
 	cmd             *exec.Cmd
+	procGroup       processGroup
 	wanted          bool
 	restarts        []time.Time
 	restartLimitHit bool
@@ -146,6 +154,7 @@ func (m *manager) startLocked() {
 	cmd.Dir = m.cwd
 	cmd.Env = processEnv(jwt)
 	cmd.Stdout, cmd.Stderr = logWriter{m}, logWriter{m}
+	prepareProcessGroup(cmd)
 	if err := cmd.Start(); err != nil {
 		m.lastExit = fmt.Sprintf("failed to start: %v", err)
 		m.appendLogLocked(m.lastExit + "\n")
@@ -155,7 +164,14 @@ func (m *manager) startLocked() {
 		}
 		return
 	}
+	procGroup, err := newProcessGroup(cmd)
+	if err != nil {
+		// The process is already running; fall back to killing only the
+		// immediate child rather than failing the launch outright.
+		m.appendLogLocked(fmt.Sprintf("warning: failed to group process tree: %v\n", err))
+	}
 	m.cmd = cmd
+	m.procGroup = procGroup
 	m.appendLogLocked(fmt.Sprintf("started %s (pid %d)\n", m.script, cmd.Process.Pid))
 	go m.wait(cmd)
 }
@@ -201,6 +217,7 @@ func (m *manager) wait(cmd *exec.Cmd) {
 		return
 	}
 	m.cmd = nil
+	m.procGroup = nil
 	if err != nil {
 		m.lastExit = err.Error()
 	} else {
@@ -236,10 +253,13 @@ func (m *manager) recordExitLocked() {
 	}
 }
 func (m *manager) stopLocked() {
-	if m.cmd != nil && m.cmd.Process != nil {
+	if m.procGroup != nil {
+		_ = m.procGroup.Kill()
+	} else if m.cmd != nil && m.cmd.Process != nil {
 		_ = m.cmd.Process.Kill()
 	}
 	m.cmd = nil
+	m.procGroup = nil
 }
 func (m *manager) appendLog(data string) { m.mu.Lock(); defer m.mu.Unlock(); m.appendLogLocked(data) }
 func (m *manager) appendLogLocked(data string) {
