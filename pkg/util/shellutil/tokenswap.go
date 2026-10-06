@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -101,7 +102,8 @@ func encodeEnvVarsForBash(env map[string]string) (string, error) {
 	for k, v := range env {
 		// validate key
 		if !IsValidEnvVarName(k) {
-			return "", fmt.Errorf("invalid env var name: %q", k)
+			log.Printf("skipping env var with invalid name: %q", k)
+			continue
 		}
 		encoded += fmt.Sprintf("export %s=%s\n", k, HardQuote(v))
 	}
@@ -113,7 +115,8 @@ func encodeEnvVarsForFish(env map[string]string) (string, error) {
 	for k, v := range env {
 		// validate key
 		if !IsValidEnvVarName(k) {
-			return "", fmt.Errorf("invalid env var name: %q", k)
+			log.Printf("skipping env var with invalid name: %q", k)
+			continue
 		}
 		encoded += fmt.Sprintf("set -x %s %s\n", k, HardQuoteFish(v))
 	}
@@ -125,7 +128,8 @@ func encodeEnvVarsForPowerShell(env map[string]string) (string, error) {
 	for k, v := range env {
 		// validate key
 		if !IsValidEnvVarName(k) {
-			return "", fmt.Errorf("invalid env var name: %q", k)
+			log.Printf("skipping env var with invalid name: %q", k)
+			continue
 		}
 		encoded += fmt.Sprintf("$env:%s = %s\n", k, HardQuotePowerShell(v))
 	}
