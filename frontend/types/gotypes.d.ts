@@ -1312,6 +1312,7 @@ declare global {
         filteredcount?: number;
     };
 
+    // wshrpc.ProcessStatusData
     type ProcessStatusData = {
         script: string;
         cwd: string;

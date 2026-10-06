@@ -670,15 +670,19 @@ func PathCommand(w *wshutil.WshRpc, data wshrpc.PathCommandData, opts *wshrpc.Rp
 	return resp, err
 }
 
+// command "processstart", wshserver.ProcessStartCommand
 func ProcessStartCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "processstart", nil, opts)
 	return err
 }
 
+// command "processstatus", wshserver.ProcessStatusCommand
 func ProcessStatusCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (wshrpc.ProcessStatusData, error) {
-	return sendRpcRequestCallHelper[wshrpc.ProcessStatusData](w, "processstatus", nil, opts)
+	resp, err := sendRpcRequestCallHelper[wshrpc.ProcessStatusData](w, "processstatus", nil, opts)
+	return resp, err
 }
 
+// command "processstop", wshserver.ProcessStopCommand
 func ProcessStopCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "processstop", nil, opts)
 	return err
@@ -1097,3 +1101,5 @@ func WslStatusCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]wshrpc.ConnSta
 	resp, err := sendRpcRequestCallHelper[[]wshrpc.ConnStatus](w, "wslstatus", nil, opts)
 	return resp, err
 }
+
+
