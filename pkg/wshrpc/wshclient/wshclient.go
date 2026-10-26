@@ -670,21 +670,33 @@ func PathCommand(w *wshutil.WshRpc, data wshrpc.PathCommandData, opts *wshrpc.Rp
 	return resp, err
 }
 
-// command "processstart", wshserver.ProcessStartCommand
-func ProcessStartCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "processstart", nil, opts)
-	return err
-}
-
-// command "processstatus", wshserver.ProcessStatusCommand
-func ProcessStatusCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (wshrpc.ProcessStatusData, error) {
-	resp, err := sendRpcRequestCallHelper[wshrpc.ProcessStatusData](w, "processstatus", nil, opts)
+// command "processlist", wshserver.ProcessListCommand
+func ProcessListCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]wshrpc.ProcessStatusData, error) {
+	resp, err := sendRpcRequestCallHelper[[]wshrpc.ProcessStatusData](w, "processlist", nil, opts)
 	return resp, err
 }
 
+// command "processlogs", wshserver.ProcessLogsCommand
+func ProcessLogsCommand(w *wshutil.WshRpc, data wshrpc.CommandProcessLogsData, opts *wshrpc.RpcOpts) (wshrpc.CommandProcessLogsRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandProcessLogsRtnData](w, "processlogs", data, opts)
+	return resp, err
+}
+
+// command "processrestart", wshserver.ProcessRestartCommand
+func ProcessRestartCommand(w *wshutil.WshRpc, data wshrpc.CommandProcessIdData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "processrestart", data, opts)
+	return err
+}
+
+// command "processstart", wshserver.ProcessStartCommand
+func ProcessStartCommand(w *wshutil.WshRpc, data wshrpc.CommandProcessIdData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "processstart", data, opts)
+	return err
+}
+
 // command "processstop", wshserver.ProcessStopCommand
-func ProcessStopCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "processstop", nil, opts)
+func ProcessStopCommand(w *wshutil.WshRpc, data wshrpc.CommandProcessIdData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "processstop", data, opts)
 	return err
 }
 

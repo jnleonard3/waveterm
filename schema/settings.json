@@ -3,6 +3,30 @@
   "$id": "https://github.com/wavetermdev/waveterm/pkg/wconfig/settings-type",
   "$ref": "#/$defs/SettingsType",
   "$defs": {
+    "ProcessConfigType": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "cmd": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "onstartup": {
+          "type": "boolean"
+        },
+        "jwt": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "cmd"
+      ]
+    },
     "SettingsType": {
       "properties": {
         "app:*": {
@@ -50,11 +74,11 @@
             "left"
           ]
         },
-        "app:process": {
-          "type": "string"
-        },
-        "app:process:cwd": {
-          "type": "string"
+        "app:processes": {
+          "items": {
+            "$ref": "#/$defs/ProcessConfigType"
+          },
+          "type": "array"
         },
         "feature:waveappbuilder": {
           "type": "boolean"

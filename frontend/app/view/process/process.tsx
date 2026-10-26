@@ -2,10 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button } from "@/app/element/button";
+import { createBlock } from "@/app/store/global";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import * as jotai from "jotai";
 import * as React from "react";
+import { ProcessRow } from "./processrow";
+
+const PollIntervalMs = 1000;
+const ExampleConfig = `"app:processes": [
+    { "name": "web", "cmd": "npm run dev", "cwd": "~/project" },
+    { "name": "storybook", "cmd": "npm run storybook", "onstartup": false }
+]`;
 
 export class ProcessViewModel implements ViewModel {
     viewType = "process";
@@ -13,39 +21,96 @@ export class ProcessViewModel implements ViewModel {
     viewName = jotai.atom("Process");
     noPadding = jotai.atom(true);
     constructor(_init: ViewModelInitType) {}
-    get viewComponent(): ViewComponent { return ProcessView; }
+    get viewComponent(): ViewComponent {
+        return ProcessView;
+    }
+}
+
+function editConfig() {
+    createBlock({ meta: { view: "waveconfig", file: "settings.json" } }, false, true);
 }
 
 function ProcessView(_props: { model: ProcessViewModel }) {
-    const [status, setStatus] = React.useState<ProcessStatusData>(null);
-    const [script, setScript] = React.useState("");
-    const [cwd, setCwd] = React.useState("");
+    const [statuses, setStatuses] = React.useState<ProcessStatusData[]>(null);
     const [error, setError] = React.useState("");
+
     const refresh = React.useCallback(async () => {
         try {
-            const next = await RpcApi.ProcessStatusCommand(TabRpcClient);
-            setStatus(next);
-            setScript((current) => current || next.script || "");
-            setCwd((current) => current || next.cwd || "");
+            setStatuses((await RpcApi.ProcessListCommand(TabRpcClient)) ?? []);
             setError("");
-        } catch (err) { setError(String(err)); }
+        } catch (err) {
+            setError(String(err));
+        }
     }, []);
-    React.useEffect(() => { refresh(); const id = window.setInterval(refresh, 1000); return () => window.clearInterval(id); }, [refresh]);
-    const save = async () => {
-        try {
-            await RpcApi.SetConfigCommand(TabRpcClient, { "app:process": script.trim(), "app:process:cwd": cwd.trim() });
+
+    React.useEffect(() => {
+        refresh();
+        const timer = window.setInterval(refresh, PollIntervalMs);
+        return () => window.clearInterval(timer);
+    }, [refresh]);
+
+    const runAction = React.useCallback(
+        async (action: (id: string) => Promise<void>, id: string) => {
+            try {
+                await action(id);
+            } catch (err) {
+                setError(String(err));
+            }
             await refresh();
-        } catch (err) { setError(String(err)); }
-    };
-    const start = async () => { try { await RpcApi.ProcessStartCommand(TabRpcClient); await refresh(); } catch (err) { setError(String(err)); } };
-    const stop = async () => { try { await RpcApi.ProcessStopCommand(TabRpcClient); await refresh(); } catch (err) { setError(String(err)); } };
-    return <div className="h-full flex flex-col p-4 gap-3 text-sm">
-        <div className="text-secondary">Run one local script while Wave is open. It receives a private local Wave launch context and restarts after exit, up to 5 times in 5 minutes.</div>
-        <input className="bg-inputbg border border-border rounded px-2 py-1" value={script} placeholder="Command or script" onChange={(e) => setScript(e.target.value)} />
-        <input className="bg-inputbg border border-border rounded px-2 py-1" value={cwd} placeholder="Working directory (optional)" onChange={(e) => setCwd(e.target.value)} />
-        <div className="flex gap-2"><Button onClick={save}>Save</Button><Button onClick={start} disabled={!status?.script}>Start</Button><Button onClick={stop} disabled={!status?.running}>Stop</Button></div>
-        <div className={status?.restartlimithit ? "text-error" : "text-secondary"}>{status?.running ? "Running" : "Stopped"}{status?.restartlimithit ? " — restart limit reached; Start resets it." : ""}{status?.lastexit ? ` — ${status.lastexit}` : ""}</div>
-        {error && <div className="text-error">{error}</div>}
-        <pre className="flex-1 min-h-0 overflow-auto bg-black/30 border border-border rounded p-3 whitespace-pre-wrap font-mono text-xs">{status?.logs || "No process output yet."}</pre>
-    </div>;
+        },
+        [refresh]
+    );
+    const onStart = React.useCallback(
+        (id: string) => runAction((i) => RpcApi.ProcessStartCommand(TabRpcClient, { id: i }), id),
+        [runAction]
+    );
+    const onRestart = React.useCallback(
+        (id: string) => runAction((i) => RpcApi.ProcessRestartCommand(TabRpcClient, { id: i }), id),
+        [runAction]
+    );
+    const onStop = React.useCallback(
+        (id: string) => runAction((i) => RpcApi.ProcessStopCommand(TabRpcClient, { id: i }), id),
+        [runAction]
+    );
+
+    const runningCount = statuses?.filter((s) => s.running).length ?? 0;
+
+    return (
+        <div className="h-full flex flex-col text-sm">
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+                <span className="text-secondary">
+                    {statuses?.length ?? 0} {statuses?.length == 1 ? "process" : "processes"}, {runningCount} running
+                </span>
+                <Button className="ml-auto grey outline cursor-pointer" onClick={editConfig}>
+                    Edit config
+                </Button>
+            </div>
+            {error && <div className="text-error px-3 py-2">{error}</div>}
+            <div className="flex-1 min-h-0 overflow-auto">
+                {statuses != null && statuses.length == 0 && (
+                    <div className="p-4 flex flex-col gap-3">
+                        <div>No processes configured</div>
+                        <div className="text-secondary">Add processes to settings.json:</div>
+                        <pre className="bg-black/30 border border-border rounded p-3 font-mono text-xs">
+                            {ExampleConfig}
+                        </pre>
+                        <div>
+                            <Button className="cursor-pointer" onClick={editConfig}>
+                                Edit config
+                            </Button>
+                        </div>
+                    </div>
+                )}
+                {statuses?.map((status) => (
+                    <ProcessRow
+                        key={status.id}
+                        status={status}
+                        onStart={onStart}
+                        onRestart={onRestart}
+                        onStop={onStop}
+                    />
+                ))}
+            </div>
+        </div>
+    );
 }

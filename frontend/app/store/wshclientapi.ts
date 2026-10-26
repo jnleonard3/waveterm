@@ -672,22 +672,34 @@ export class RpcApiType {
         return client.wshRpcCall("path", data, opts);
     }
 
-    // command "processstart" [call]
-    ProcessStartCommand(client: WshClient, opts?: RpcOpts): Promise<void> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "processstart", null, opts);
-        return client.wshRpcCall("processstart", null, opts);
+    // command "processlist" [call]
+    ProcessListCommand(client: WshClient, opts?: RpcOpts): Promise<ProcessStatusData[]> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "processlist", null, opts);
+        return client.wshRpcCall("processlist", null, opts);
     }
 
-    // command "processstatus" [call]
-    ProcessStatusCommand(client: WshClient, opts?: RpcOpts): Promise<ProcessStatusData> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "processstatus", null, opts);
-        return client.wshRpcCall("processstatus", null, opts);
+    // command "processlogs" [call]
+    ProcessLogsCommand(client: WshClient, data: CommandProcessLogsData, opts?: RpcOpts): Promise<CommandProcessLogsRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "processlogs", data, opts);
+        return client.wshRpcCall("processlogs", data, opts);
+    }
+
+    // command "processrestart" [call]
+    ProcessRestartCommand(client: WshClient, data: CommandProcessIdData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "processrestart", data, opts);
+        return client.wshRpcCall("processrestart", data, opts);
+    }
+
+    // command "processstart" [call]
+    ProcessStartCommand(client: WshClient, data: CommandProcessIdData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "processstart", data, opts);
+        return client.wshRpcCall("processstart", data, opts);
     }
 
     // command "processstop" [call]
-    ProcessStopCommand(client: WshClient, opts?: RpcOpts): Promise<void> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "processstop", null, opts);
-        return client.wshRpcCall("processstop", null, opts);
+    ProcessStopCommand(client: WshClient, data: CommandProcessIdData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "processstop", data, opts);
+        return client.wshRpcCall("processstop", data, opts);
     }
 
     // command "publishapp" [call]

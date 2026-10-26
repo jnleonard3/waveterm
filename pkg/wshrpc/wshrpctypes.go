@@ -29,13 +29,33 @@ type MultiArg struct {
 }
 
 type ProcessStatusData struct {
-	Script          string `json:"script"`
+	Id              string `json:"id"`
+	Name            string `json:"name"`
+	Cmd             string `json:"cmd"`
 	Cwd             string `json:"cwd"`
+	OnStartup       bool   `json:"onstartup"`
+	Jwt             bool   `json:"jwt"`
 	Running         bool   `json:"running"`
+	Pid             int    `json:"pid,omitempty"`
 	RestartCount    int    `json:"restartcount"`
 	RestartLimitHit bool   `json:"restartlimithit"`
 	LastExit        string `json:"lastexit,omitempty"`
-	Logs            string `json:"logs"`
+	LogFile         string `json:"logfile"`
+	LogSeq          int64  `json:"logseq"`
+}
+
+type CommandProcessIdData struct {
+	Id string `json:"id"`
+}
+
+type CommandProcessLogsData struct {
+	Id       string `json:"id"`
+	SinceSeq int64  `json:"sinceseq"`
+}
+
+type CommandProcessLogsRtnData struct {
+	Seq   int64    `json:"seq"`
+	Lines []string `json:"lines"`
 }
 
 // Instructions for adding a new RPC call
@@ -88,9 +108,11 @@ type WshRpcInterface interface {
 	SetConnectionsConfigCommand(ctx context.Context, data ConnConfigRequest) error
 	GetFullConfigCommand(ctx context.Context) (wconfig.FullConfigType, error)
 	GetWaveAIModeConfigCommand(ctx context.Context) (wconfig.AIModeConfigUpdate, error)
-	ProcessStatusCommand(ctx context.Context) (ProcessStatusData, error)
-	ProcessStartCommand(ctx context.Context) error
-	ProcessStopCommand(ctx context.Context) error
+	ProcessListCommand(ctx context.Context) ([]ProcessStatusData, error)
+	ProcessStartCommand(ctx context.Context, data CommandProcessIdData) error
+	ProcessStopCommand(ctx context.Context, data CommandProcessIdData) error
+	ProcessRestartCommand(ctx context.Context, data CommandProcessIdData) error
+	ProcessLogsCommand(ctx context.Context, data CommandProcessLogsData) (CommandProcessLogsRtnData, error)
 	BlockInfoCommand(ctx context.Context, blockId string) (*BlockInfoData, error)
 	DebugTermCommand(ctx context.Context, data CommandDebugTermData) (*CommandDebugTermRtnData, error)
 	BlocksListCommand(ctx context.Context, data BlocksListRequest) ([]BlocksListEntry, error)

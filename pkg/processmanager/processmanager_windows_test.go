@@ -59,7 +59,7 @@ func TestStopKillsFullProcessTree(t *testing.T) {
 		t.Fatalf("failed to create process group: %v", err)
 	}
 
-	m := newManager()
+	m := newSupervisor(processSpec{}, "", nil)
 	m.cmd = cmd
 	m.procGroup = procGroup
 

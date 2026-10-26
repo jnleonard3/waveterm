@@ -693,17 +693,24 @@ func (ws *WshServer) GetWaveAIModeConfigCommand(ctx context.Context) (wconfig.AI
 	return wconfig.AIModeConfigUpdate{Configs: resolvedConfigs}, nil
 }
 
-func (ws *WshServer) ProcessStatusCommand(ctx context.Context) (wshrpc.ProcessStatusData, error) {
-	return processmanager.Get().Status(), nil
+func (ws *WshServer) ProcessListCommand(ctx context.Context) ([]wshrpc.ProcessStatusData, error) {
+	return processmanager.Get().List(), nil
 }
 
-func (ws *WshServer) ProcessStartCommand(ctx context.Context) error {
-	return processmanager.Get().Start()
+func (ws *WshServer) ProcessStartCommand(ctx context.Context, data wshrpc.CommandProcessIdData) error {
+	return processmanager.Get().Start(data.Id)
 }
 
-func (ws *WshServer) ProcessStopCommand(ctx context.Context) error {
-	processmanager.Get().Stop()
-	return nil
+func (ws *WshServer) ProcessStopCommand(ctx context.Context, data wshrpc.CommandProcessIdData) error {
+	return processmanager.Get().Stop(data.Id)
+}
+
+func (ws *WshServer) ProcessRestartCommand(ctx context.Context, data wshrpc.CommandProcessIdData) error {
+	return processmanager.Get().Restart(data.Id)
+}
+
+func (ws *WshServer) ProcessLogsCommand(ctx context.Context, data wshrpc.CommandProcessLogsData) (wshrpc.CommandProcessLogsRtnData, error) {
+	return processmanager.Get().Logs(data.Id, data.SinceSeq)
 }
 
 func (ws *WshServer) ConnStatusCommand(ctx context.Context) ([]wshrpc.ConnStatus, error) {

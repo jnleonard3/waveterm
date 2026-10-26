@@ -527,6 +527,23 @@ declare global {
         message: string;
     };
 
+    // wshrpc.CommandProcessIdData
+    type CommandProcessIdData = {
+        id: string;
+    };
+
+    // wshrpc.CommandProcessLogsData
+    type CommandProcessLogsData = {
+        id: string;
+        sinceseq: number;
+    };
+
+    // wshrpc.CommandProcessLogsRtnData
+    type CommandProcessLogsRtnData = {
+        seq: number;
+        lines: string[];
+    };
+
     // wshrpc.CommandPublishAppData
     type CommandPublishAppData = {
         appid: string;
@@ -1287,6 +1304,15 @@ declare global {
         y: number;
     };
 
+    // wconfig.ProcessConfigType
+    type ProcessConfigType = {
+        name?: string;
+        cmd: string;
+        cwd?: string;
+        onstartup?: boolean;
+        jwt?: boolean;
+    };
+
     // wshrpc.ProcessInfo
     type ProcessInfo = {
         pid: number;
@@ -1314,13 +1340,19 @@ declare global {
 
     // wshrpc.ProcessStatusData
     type ProcessStatusData = {
-        script: string;
+        id: string;
+        name: string;
+        cmd: string;
         cwd: string;
+        onstartup: boolean;
+        jwt: boolean;
         running: boolean;
+        pid?: number;
         restartcount: number;
         restartlimithit: boolean;
         lastexit?: string;
-        logs: string;
+        logfile: string;
+        logseq: number;
     };
 
     // wshrpc.ProcessSummary
@@ -1420,8 +1452,7 @@ declare global {
         "app:disablectrlshiftdisplay"?: boolean;
         "app:focusfollowscursor"?: string;
         "app:tabbar"?: string;
-        "app:process"?: string;
-        "app:process:cwd"?: string;
+        "app:processes"?: ProcessConfigType[];
         "feature:waveappbuilder"?: boolean;
         "ai:*"?: boolean;
         "ai:preset"?: string;
