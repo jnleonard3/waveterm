@@ -24,6 +24,7 @@ import { callWithOriginalXdgCurrentDesktopAsync, unamePlatform } from "./emain-p
 import { getWaveTabViewByWebContentsId } from "./emain-tabview";
 import { handleCtrlShiftState } from "./emain-util";
 import { getWaveVersion } from "./emain-wavesrv";
+import { buildWebviewMenuItems } from "./emain-webview-menu";
 import { createNewWaveWindow, getWaveWindowByWebContentsId } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
 
@@ -192,6 +193,88 @@ function saveImageFileWithNativeDialog(
         });
 }
 
+export function showWebviewContextMenu(wc: electron.WebContents, params: electron.ContextMenuParams) {
+    const hostWc = wc.hostWebContents;
+    const win = hostWc == null || hostWc.isDestroyed() ? null : getWaveWindowByWebContentsId(hostWc.id);
+    if (win == null) {
+        return;
+    }
+    const descs = buildWebviewMenuItems({
+        ...params,
+        canGoBack: wc.navigationHistory.canGoBack(),
+        canGoForward: wc.navigationHistory.canGoForward(),
+    });
+    const linkURL = params.linkURL;
+    const srcURL = params.srcURL;
+    const menu = new electron.Menu();
+    for (const desc of descs) {
+        if (desc.action === "separator") {
+            menu.append(new electron.MenuItem({ type: "separator" }));
+            continue;
+        }
+        let click: () => void;
+        if (desc.action === "open-link") {
+            click = () =>
+                fireAndForget(() =>
+                    callWithOriginalXdgCurrentDesktopAsync(() =>
+                        electron.shell.openExternal(linkURL).catch((err) => {
+                            console.error(`Failed to open URL ${linkURL}:`, err);
+                        })
+                    )
+                );
+        } else if (desc.action === "copy-link") {
+            click = () => electron.clipboard.writeText(linkURL);
+        } else if (desc.action === "save-image") {
+            click = () => {
+                if (wc.isDestroyed() || hostWc.isDestroyed()) {
+                    return;
+                }
+                getUrlInSession(wc.session, srcURL)
+                    .then((result) => {
+                        saveImageFileWithNativeDialog(hostWc, result.fileName, result.mimeType, result.stream);
+                    })
+                    .catch((e) => {
+                        console.log("error getting image", e);
+                    });
+            };
+        } else {
+            click = () => {
+                if (wc.isDestroyed()) {
+                    return;
+                }
+                switch (desc.action) {
+                    case "cut":
+                        wc.cut();
+                        break;
+                    case "copy":
+                        wc.copy();
+                        break;
+                    case "paste":
+                        wc.paste();
+                        break;
+                    case "select-all":
+                        wc.selectAll();
+                        break;
+                    case "back":
+                        wc.navigationHistory.goBack();
+                        break;
+                    case "forward":
+                        wc.navigationHistory.goForward();
+                        break;
+                    case "reload":
+                        wc.reload();
+                        break;
+                    case "inspect":
+                        wc.inspectElement(params.x, params.y);
+                        break;
+                }
+            };
+        }
+        menu.append(new electron.MenuItem({ label: desc.label, enabled: desc.enabled !== false, click }));
+    }
+    menu.popup({ window: win });
+}
+
 export function initIpcHandlers() {
     electron.ipcMain.on("open-external", (event, url) => {
         if (url && typeof url === "string") {
@@ -205,35 +288,6 @@ export function initIpcHandlers() {
         } else {
             console.error("Invalid URL received in open-external event:", url);
         }
-    });
-
-    electron.ipcMain.on("webview-image-contextmenu", (event: electron.IpcMainEvent, payload: { src: string }) => {
-        const menu = new electron.Menu();
-        const win = getWaveWindowByWebContentsId(event.sender.hostWebContents?.id);
-        if (win == null) {
-            return;
-        }
-        menu.append(
-            new electron.MenuItem({
-                label: "Save Image",
-                click: () => {
-                    const resultP = getUrlInSession(event.sender.session, payload.src);
-                    resultP
-                        .then((result) => {
-                            saveImageFileWithNativeDialog(
-                                event.sender.hostWebContents,
-                                result.fileName,
-                                result.mimeType,
-                                result.stream
-                            );
-                        })
-                        .catch((e) => {
-                            console.log("error getting image", e);
-                        });
-                },
-            })
-        );
-        menu.popup();
     });
 
     electron.ipcMain.on("webview-mouse-navigate", (event: electron.IpcMainEvent, direction: string) => {

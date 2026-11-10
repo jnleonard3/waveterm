@@ -9,6 +9,7 @@ import { createNewWaveWindow, getWaveWindowById } from "emain/emain-window";
 import path from "path";
 import { configureAuthKeyRequestInjection } from "./authkey";
 import { setWasActive } from "./emain-activity";
+import { showWebviewContextMenu } from "./emain-ipc";
 import { getElectronAppBasePath, isDevVite, unamePlatform } from "./emain-platform";
 import {
     decreaseZoomLevel,
@@ -321,6 +322,12 @@ export async function getOrCreateWebViewForTab(waveWindowId: string, tabId: stri
             }
             tabView.webContents.send("webview-new-window", wc.id, details);
             return { action: "deny" };
+        });
+        wc.on("context-menu", (_event, params) => {
+            if (wc.isDestroyed() || tabView.webContents == null || tabView.webContents.isDestroyed()) {
+                return;
+            }
+            showWebviewContextMenu(wc, params);
         });
     });
     tabView.webContents.on("before-input-event", (e, input) => {
