@@ -41,6 +41,7 @@ import {
 } from "./emain-platform";
 import { ensureHotSpareTab, setMaxTabCacheSize } from "./emain-tabview";
 import { getIsWaveSrvDead, getWaveSrvProc, getWaveSrvReady, runWaveSrv } from "./emain-wavesrv";
+import { initExternalDomainsEventSubscription, setExternalDomainsFromSettings } from "./emain-webview-links";
 import {
     createBrowserWindow,
     createNewWaveWindow,
@@ -458,6 +459,8 @@ async function appMain() {
         registerGlobalHotkey(rawGlobalHotKey);
     }
     initGlobalHotkeyEventSubscription();
+    setExternalDomainsFromSettings(launchSettings);
+    initExternalDomainsEventSubscription();
 }
 
 appMain().catch((e) => {

@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { buildWebviewMenuItems, isExternalOpenableUrl, WebviewMenuParams } from "./emain-webview-menu";
+import {
+    buildWebviewMenuItems,
+    isExternalDomainUrl,
+    isExternalOpenableUrl,
+    WebviewMenuParams,
+} from "./emain-webview-menu";
 
 const actions = (p: WebviewMenuParams) => buildWebviewMenuItems(p).map((i) => i.action);
 const PageTail = ["back", "forward", "reload", "separator", "inspect"];
@@ -108,5 +113,79 @@ describe("buildWebviewMenuItems", () => {
         ]);
         expect(result[0]).not.toBe("separator");
         expect(result[result.length - 1]).not.toBe("separator");
+    });
+});
+
+describe("isExternalDomainUrl", () => {
+    const d = ["github.com"];
+    it("matches exact host and subdomains", () => {
+        expect(isExternalDomainUrl("https://github.com/foo", d)).toBe(true);
+        expect(isExternalDomainUrl("https://gist.github.com/x", d)).toBe(true);
+        expect(isExternalDomainUrl("http://api.github.com", d)).toBe(true);
+    });
+    it("rejects look-alike suffixes", () => {
+        expect(isExternalDomainUrl("https://notgithub.com", d)).toBe(false);
+        expect(isExternalDomainUrl("https://github.com.evil.io", d)).toBe(false);
+    });
+    it("is case-insensitive", () => {
+        expect(isExternalDomainUrl("https://GitHub.COM/x", d)).toBe(true);
+        expect(isExternalDomainUrl("https://github.com", ["GitHub.com"])).toBe(true);
+    });
+    it("accepts wildcard, dot, and URL-form entries", () => {
+        expect(isExternalDomainUrl("https://gist.github.com", ["*.github.com"])).toBe(true);
+        expect(isExternalDomainUrl("https://github.com", [".github.com"])).toBe(true);
+        expect(isExternalDomainUrl("https://github.com/a", ["https://github.com/foo"])).toBe(true);
+    });
+    it("only considers http/https", () => {
+        expect(isExternalDomainUrl("ftp://github.com", d)).toBe(false);
+        expect(isExternalDomainUrl("file:///github.com", d)).toBe(false);
+        expect(isExternalDomainUrl("garbage", d)).toBe(false);
+    });
+    it("empty or missing list never matches", () => {
+        expect(isExternalDomainUrl("https://github.com", [])).toBe(false);
+        expect(isExternalDomainUrl("https://github.com", null)).toBe(false);
+        expect(isExternalDomainUrl("https://github.com", ["", "  "])).toBe(false);
+    });
+});
+
+describe("spellcheck section", () => {
+    const edit = { isEditable: true, editFlags: { canPaste: true } };
+    it("shows suggestions capped at 5, then add to dictionary, before edit section", () => {
+        const items = buildWebviewMenuItems({
+            ...edit,
+            mediaType: "none",
+            misspelledWord: "teh",
+            dictionarySuggestions: ["a", "b", "c", "d", "e", "f", "g"],
+        });
+        expect(items.slice(0, 7).map((i) => i.action)).toEqual([
+            "replace-misspelling",
+            "replace-misspelling",
+            "replace-misspelling",
+            "replace-misspelling",
+            "replace-misspelling",
+            "add-to-dictionary",
+            "separator",
+        ]);
+        expect(items.slice(0, 5).map((i) => i.value)).toEqual(["a", "b", "c", "d", "e"]);
+        expect(items[7].action).toBe("cut");
+    });
+    it("no suggestions shows disabled No Guesses Found", () => {
+        const items = buildWebviewMenuItems({ ...edit, misspelledWord: "zzz", dictionarySuggestions: [] });
+        expect(items[0]).toMatchObject({ label: "No Guesses Found", enabled: false });
+        expect(items[1].action).toBe("add-to-dictionary");
+    });
+    it("no section when not editable or no misspelling", () => {
+        expect(actions({ misspelledWord: "teh", dictionarySuggestions: ["the"] })).toEqual(PageTail);
+        expect(actions({ ...edit, misspelledWord: "" })).not.toContain("add-to-dictionary");
+    });
+    it("separates from link section", () => {
+        const a = actions({ ...edit, linkURL: "https://a.com", misspelledWord: "teh", dictionarySuggestions: ["the"] });
+        expect(a.slice(0, 5)).toEqual([
+            "open-link",
+            "copy-link",
+            "separator",
+            "replace-misspelling",
+            "add-to-dictionary",
+        ]);
     });
 });

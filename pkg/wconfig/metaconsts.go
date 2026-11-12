@@ -73,6 +73,7 @@ const (
 	ConfigKey_WebOpenLinksInternally         = "web:openlinksinternally"
 	ConfigKey_WebDefaultUrl                  = "web:defaulturl"
 	ConfigKey_WebDefaultSearch               = "web:defaultsearch"
+	ConfigKey_WebExternalDomains             = "web:externaldomains"
 
 	ConfigKey_AutoUpdateClear                = "autoupdate:*"
 	ConfigKey_AutoUpdateEnabled              = "autoupdate:enabled"

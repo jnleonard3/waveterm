@@ -231,6 +231,12 @@
         "web:defaultsearch": {
           "type": "string"
         },
+        "web:externaldomains": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "autoupdate:*": {
           "type": "boolean"
         },

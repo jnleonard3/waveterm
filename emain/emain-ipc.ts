@@ -24,6 +24,7 @@ import { callWithOriginalXdgCurrentDesktopAsync, unamePlatform } from "./emain-p
 import { getWaveTabViewByWebContentsId } from "./emain-tabview";
 import { handleCtrlShiftState } from "./emain-util";
 import { getWaveVersion } from "./emain-wavesrv";
+import { openExternalUrl } from "./emain-webview-links";
 import { buildWebviewMenuItems } from "./emain-webview-menu";
 import { createNewWaveWindow, getWaveWindowByWebContentsId } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
@@ -214,14 +215,7 @@ export function showWebviewContextMenu(wc: electron.WebContents, params: electro
         }
         let click: () => void;
         if (desc.action === "open-link") {
-            click = () =>
-                fireAndForget(() =>
-                    callWithOriginalXdgCurrentDesktopAsync(() =>
-                        electron.shell.openExternal(linkURL).catch((err) => {
-                            console.error(`Failed to open URL ${linkURL}:`, err);
-                        })
-                    )
-                );
+            click = () => openExternalUrl(linkURL);
         } else if (desc.action === "copy-link") {
             click = () => electron.clipboard.writeText(linkURL);
         } else if (desc.action === "save-image") {
@@ -255,6 +249,12 @@ export function showWebviewContextMenu(wc: electron.WebContents, params: electro
                     case "select-all":
                         wc.selectAll();
                         break;
+                    case "replace-misspelling":
+                        wc.replaceMisspelling(desc.value);
+                        break;
+                    case "add-to-dictionary":
+                        wc.session.addWordToSpellCheckerDictionary(params.misspelledWord);
+                        break;
                     case "back":
                         wc.navigationHistory.goBack();
                         break;
@@ -278,13 +278,7 @@ export function showWebviewContextMenu(wc: electron.WebContents, params: electro
 export function initIpcHandlers() {
     electron.ipcMain.on("open-external", (event, url) => {
         if (url && typeof url === "string") {
-            fireAndForget(() =>
-                callWithOriginalXdgCurrentDesktopAsync(() =>
-                    electron.shell.openExternal(url).catch((err) => {
-                        console.error(`Failed to open URL ${url}:`, err);
-                    })
-                )
-            );
+            openExternalUrl(url);
         } else {
             console.error("Invalid URL received in open-external event:", url);
         }

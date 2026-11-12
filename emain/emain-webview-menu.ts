@@ -1,6 +1,10 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { isExternalDomainUrl } from "@/util/externaldomain";
+
+export { isExternalDomainUrl };
+
 export type WebviewEditFlags = {
     canCut?: boolean;
     canCopy?: boolean;
@@ -17,6 +21,8 @@ export type WebviewMenuParams = {
     editFlags?: WebviewEditFlags;
     canGoBack?: boolean;
     canGoForward?: boolean;
+    misspelledWord?: string;
+    dictionarySuggestions?: string[];
 };
 
 export type WebviewMenuAction =
@@ -27,6 +33,8 @@ export type WebviewMenuAction =
     | "copy"
     | "paste"
     | "select-all"
+    | "replace-misspelling"
+    | "add-to-dictionary"
     | "back"
     | "forward"
     | "reload"
@@ -37,7 +45,10 @@ export type WebviewMenuItemDesc = {
     action: WebviewMenuAction;
     label?: string;
     enabled?: boolean;
+    value?: string;
 };
+
+const MaxSpellSuggestions = 5;
 
 export function isExternalOpenableUrl(url: string): boolean {
     if (url == null || url === "") {
@@ -49,6 +60,23 @@ export function isExternalOpenableUrl(url: string): boolean {
     } catch (e) {
         return false;
     }
+}
+
+function buildSpellSection(params: WebviewMenuParams): WebviewMenuItemDesc[] {
+    if (!params.isEditable || isEmpty(params.misspelledWord)) {
+        return [];
+    }
+    const suggestions = (params.dictionarySuggestions ?? []).slice(0, MaxSpellSuggestions);
+    const section: WebviewMenuItemDesc[] = suggestions.map((value) => ({
+        action: "replace-misspelling",
+        label: value,
+        value,
+    }));
+    if (suggestions.length === 0) {
+        section.push({ action: "replace-misspelling", label: "No Guesses Found", enabled: false });
+    }
+    section.push({ action: "add-to-dictionary", label: "Add to Dictionary" });
+    return section;
 }
 
 function isEmpty(s: string): boolean {
@@ -87,7 +115,14 @@ export function buildWebviewMenuItems(params: WebviewMenuParams): WebviewMenuIte
         { action: "reload", label: "Reload" },
     ];
     const inspectSection: WebviewMenuItemDesc[] = [{ action: "inspect", label: "Inspect Element" }];
-    const sections = [linkSection, imageSection, buildEditSection(params), pageSection, inspectSection];
+    const sections = [
+        linkSection,
+        imageSection,
+        buildSpellSection(params),
+        buildEditSection(params),
+        pageSection,
+        inspectSection,
+    ];
     const result: WebviewMenuItemDesc[] = [];
     for (const section of sections) {
         if (section.length === 0) {

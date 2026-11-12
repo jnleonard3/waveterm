@@ -15,6 +15,7 @@ import {
     LayoutTreeSplitVerticalAction,
 } from "@/layout/lib/types";
 import { getWebServerEndpoint } from "@/util/endpoints";
+import { isExternalDomainUrl } from "@/util/externaldomain";
 import { fetch } from "@/util/fetchutil";
 import { setPlatform } from "@/util/platformutil";
 import {
@@ -534,7 +535,9 @@ function getLocalHostDisplayNameAtom(): Atom<string> {
  * @param forceOpenInternally Force the link to open in a new web widget.
  */
 async function openLink(uri: string, forceOpenInternally = false) {
-    if (forceOpenInternally || globalStore.get(atoms.settingsAtom)?.["web:openlinksinternally"]) {
+    const settings = globalStore.get(atoms.settingsAtom);
+    const isExternalDomain = isExternalDomainUrl(uri, settings?.["web:externaldomains"]);
+    if (forceOpenInternally || (settings?.["web:openlinksinternally"] && !isExternalDomain)) {
         const blockDef: BlockDef = {
             meta: {
                 view: "web",
@@ -685,7 +688,6 @@ export {
     getBlockComponentModel,
     getBlockMetaKeyAtom,
     getBlockTermDurableAtom,
-    getTabMetaKeyAtom,
     getConfigBackgroundAtom,
     getConnConfigKeyAtom,
     getConnStatusAtom,
@@ -697,6 +699,7 @@ export {
     getOverrideConfigAtom,
     getSettingsKeyAtom,
     getSettingsPrefixAtom,
+    getTabMetaKeyAtom,
     getUserName,
     globalPrimaryTabStartup,
     globalStore,

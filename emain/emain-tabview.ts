@@ -20,6 +20,8 @@ import {
     shFrameNavHandler,
     shNavHandler,
 } from "./emain-util";
+import { getExternalDomains, openExternalUrl } from "./emain-webview-links";
+import { isExternalDomainUrl } from "./emain-webview-menu";
 import { ElectronWshClient } from "./emain-wsh";
 
 function handleWindowsMenuAccelerators(
@@ -320,8 +322,24 @@ export async function getOrCreateWebViewForTab(waveWindowId: string, tabId: stri
             if (wc == null || wc.isDestroyed() || tabView.webContents == null || tabView.webContents.isDestroyed()) {
                 return { action: "deny" };
             }
+            if (isExternalDomainUrl(details.url, getExternalDomains())) {
+                openExternalUrl(details.url);
+                return { action: "deny" };
+            }
             tabView.webContents.send("webview-new-window", wc.id, details);
             return { action: "deny" };
+        });
+        wc.on("will-navigate", (e, url) => {
+            const domains = getExternalDomains();
+            if (!isExternalDomainUrl(url, domains)) {
+                return;
+            }
+            // the user deliberately opened a listed domain in this webview; let them browse within it
+            if (isExternalDomainUrl(wc.getURL(), domains)) {
+                return;
+            }
+            e.preventDefault();
+            openExternalUrl(url);
         });
         wc.on("context-menu", (_event, params) => {
             if (wc.isDestroyed() || tabView.webContents == null || tabView.webContents.isDestroyed()) {

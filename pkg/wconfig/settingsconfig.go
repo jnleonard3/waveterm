@@ -128,10 +128,11 @@ type SettingsType struct {
 	EditorFontSize            float64 `json:"editor:fontsize,omitempty"`
 	EditorInlineDiff          bool    `json:"editor:inlinediff,omitempty"`
 
-	WebClear               bool   `json:"web:*,omitempty"`
-	WebOpenLinksInternally bool   `json:"web:openlinksinternally,omitempty"`
-	WebDefaultUrl          string `json:"web:defaulturl,omitempty"`
-	WebDefaultSearch       string `json:"web:defaultsearch,omitempty"`
+	WebClear               bool     `json:"web:*,omitempty"`
+	WebOpenLinksInternally bool     `json:"web:openlinksinternally,omitempty"`
+	WebDefaultUrl          string   `json:"web:defaulturl,omitempty"`
+	WebDefaultSearch       string   `json:"web:defaultsearch,omitempty"`
+	WebExternalDomains     []string `json:"web:externaldomains,omitempty"`
 
 	AutoUpdateClear         bool    `json:"autoupdate:*,omitempty"`
 	AutoUpdateEnabled       bool    `json:"autoupdate:enabled,omitempty"`
