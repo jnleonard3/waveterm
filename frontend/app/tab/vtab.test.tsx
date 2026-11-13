@@ -3,6 +3,7 @@
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { TabHoverCardContent } from "./tabhovercard";
 import { VTab, VTabItem } from "./vtab";
 
 const OriginalCss = globalThis.CSS;
@@ -59,5 +60,22 @@ describe("VTab badges", () => {
         expect(markup).not.toContain("definitely-not-a-color");
         expect(markup).not.toContain("fa-flag");
         expect(markup).toContain("#4ade80");
+    });
+});
+
+describe("TabHoverCardContent", () => {
+    it("renders the full name and description", () => {
+        const markup = renderToStaticMarkup(
+            <TabHoverCardContent name="A Very Long Tab Name To Show Truncation" description={"line1\nline2"} />
+        );
+        expect(markup).toContain("A Very Long Tab Name To Show Truncation");
+        expect(markup).toContain("line1");
+        expect(markup).toContain("whitespace-pre-wrap");
+    });
+
+    it("omits the description block when none is set", () => {
+        const markup = renderToStaticMarkup(<TabHoverCardContent name="Terminal" />);
+        expect(markup).toContain("Terminal");
+        expect(markup).not.toContain("text-secondary");
     });
 });

@@ -481,10 +481,13 @@ Workspace resolution: explicit `--workspace`, else `WAVETERM_WORKSPACEID`, else 
 
 ```sh
 wsh tab rename [--tab ID] NAME
+wsh tab describe [--tab ID] [--clear] [TEXT|-]
 wsh tab focus ID
 wsh tab list [--workspace ID] [--json]
 wsh tab move <tabid> --index <n>
 ```
+
+`wsh tab describe` sets a plain-text description that appears below the tab name in the hover popover. `--tab` defaults to `WAVETERM_TABID`. Pass `-` as TEXT to read the description from stdin (multi-line is preserved). `--clear` or an empty string removes it. The description is stored in the `tab:description` meta key (so `wsh setmeta -b tab tab:description=...` also works), and `wsh tab list --json` includes it as `description`.
 
 `--no-activate` creates a tab without activating it. Deeper OS/window focus behavior is unchanged and may still move window focus when activation occurs.
 

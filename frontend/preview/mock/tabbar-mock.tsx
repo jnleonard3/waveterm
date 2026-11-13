@@ -13,6 +13,7 @@ type PreviewTabEntry = {
     tabName: string;
     badges?: Badge[] | null;
     flagColor?: string | null;
+    description?: string | null;
 };
 
 function badgeBlockId(tabId: string, badgeId: string): string {
@@ -27,7 +28,10 @@ function makeTabWaveObj(tab: PreviewTabEntry): Tab {
         version: 1,
         name: tab.tabName,
         blockids,
-        meta: tab.flagColor ? { "tab:flagcolor": tab.flagColor } : {},
+        meta: {
+            ...(tab.flagColor ? { "tab:flagcolor": tab.flagColor } : {}),
+            ...(tab.description ? { "tab:description": tab.description } : {}),
+        },
     } as Tab;
 }
 
@@ -48,6 +52,7 @@ export const TabBarMockTabs: PreviewTabEntry[] = [
     {
         tabId: "preview-tab-2",
         tabName: "Build Logs",
+        description: "Streaming output from the CI build.\nFails fast on the first lint error.",
         badges: [
             {
                 badgeid: "01958000-0000-7000-0000-000000000001",

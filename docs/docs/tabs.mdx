@@ -27,6 +27,12 @@ You can close a tab by hovering over it and clicking the <i className="fa-sharp 
 
 Closing a block is a destructive action that will stop any running processes and discard any unsaved work. This cannot be undone.
 
+### Tab name and description
+
+Hovering over a tab (in the horizontal or vertical tab bar) shows a popover with the tab's full name, so long names that are truncated in the tab bar can still be read. If the tab has a description, it is shown below the name. The popover is hidden while renaming, dragging, or when the context menu is open.
+
+Set a description with `wsh tab describe "text"` (or `wsh tab describe -` to read from stdin), and remove it with `wsh tab describe --clear`. See [wsh tab](./wsh-reference#tab).
+
 ### Rearranging tabs
 
 You can rearrange tabs by dragging them around within the tab bar.

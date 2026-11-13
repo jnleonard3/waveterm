@@ -150,6 +150,7 @@ function VTabWrapper({
         name: tabData?.name ?? "",
         badges,
         flagColor,
+        description: tabData?.meta?.["tab:description"] ?? null,
     };
 
     const handleContextMenu = useCallback(

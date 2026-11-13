@@ -6,6 +6,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"text/tabwriter"
@@ -66,6 +67,17 @@ var tabRenameCmd = &cobra.Command{
 	DisableFlagsInUseLine: true,
 }
 
+var tabDescribeCmd = &cobra.Command{
+	Use:   "describe [--tab ID] [--clear] [TEXT|-]",
+	Short: "Set or clear a tab description",
+	Long: `Set the description shown in the tab hover popover.
+Use - as TEXT to read the description from stdin. An empty TEXT or --clear removes it.`,
+	Args:                  cobra.MaximumNArgs(1),
+	RunE:                  tabDescribeRun,
+	PreRunE:               preRunSetupRpcClient,
+	DisableFlagsInUseLine: true,
+}
+
 var tabFocusCmd = &cobra.Command{
 	Use:                   "focus ID",
 	Short:                 "Focus a tab",
@@ -76,15 +88,17 @@ var tabFocusCmd = &cobra.Command{
 }
 
 var (
-	tabWorkspaceId string
-	tabListJSON    bool
-	tabMoveIndex   int
-	tabCreateName  string
-	tabCreateCwd   string
-	tabCreateBlock string
-	tabCreateJSON  bool
-	tabCreateNoAct bool
-	tabRenameTabId string
+	tabWorkspaceId   string
+	tabListJSON      bool
+	tabMoveIndex     int
+	tabCreateName    string
+	tabCreateCwd     string
+	tabCreateBlock   string
+	tabCreateJSON    bool
+	tabCreateNoAct   bool
+	tabRenameTabId   string
+	tabDescribeTabId string
+	tabDescribeClear bool
 )
 
 func init() {
@@ -108,6 +122,10 @@ func init() {
 	tabRenameCmd.Flags().StringVar(&tabRenameTabId, "tab", "", "tab id (defaults to WAVETERM_TABID)")
 	tabCommand.AddCommand(tabRenameCmd)
 
+	tabDescribeCmd.Flags().StringVar(&tabDescribeTabId, "tab", "", "tab id (defaults to WAVETERM_TABID)")
+	tabDescribeCmd.Flags().BoolVar(&tabDescribeClear, "clear", false, "remove the tab description")
+	tabCommand.AddCommand(tabDescribeCmd)
+
 	tabCommand.AddCommand(tabFocusCmd)
 
 	rootCmd.AddCommand(tabCommand)
@@ -118,6 +136,7 @@ type tabListEntry struct {
 	Name        string `json:"name"`
 	WorkspaceId string `json:"workspaceid"`
 	Index       int    `json:"index"`
+	Description string `json:"description,omitempty"`
 }
 
 func resolveWorkspaceId() (string, error) {
@@ -179,6 +198,7 @@ func tabListRun(cmd *cobra.Command, args []string) (rtnErr error) {
 			Name:        tabData.Name,
 			WorkspaceId: ws.OID,
 			Index:       i,
+			Description: tabData.Meta.GetString(waveobj.MetaKey_TabDescription, ""),
 		})
 	}
 
@@ -334,6 +354,55 @@ func tabRenameRun(cmd *cobra.Command, args []string) (rtnErr error) {
 	err = wshclient.UpdateTabNameCommand(RpcClient, tabId, name, &wshrpc.RpcOpts{Timeout: 2000})
 	if err != nil {
 		return fmt.Errorf("renaming tab: %w", err)
+	}
+	return nil
+}
+
+// resolveTabDescription returns the description to store; "" means clear.
+func resolveTabDescription(args []string, clear bool, stdin io.Reader) (string, error) {
+	if clear {
+		if len(args) > 0 {
+			return "", fmt.Errorf("--clear cannot be combined with description text")
+		}
+		return "", nil
+	}
+	if len(args) == 0 {
+		return "", fmt.Errorf("description text required (use --clear to remove, or - to read stdin)")
+	}
+	if args[0] != "-" {
+		return args[0], nil
+	}
+	data, err := io.ReadAll(stdin)
+	if err != nil {
+		return "", fmt.Errorf("reading stdin: %w", err)
+	}
+	return strings.TrimRight(string(data), "\r\n"), nil
+}
+
+func tabDescribeRun(cmd *cobra.Command, args []string) (rtnErr error) {
+	defer func() {
+		sendActivity("tab-describe", rtnErr == nil)
+	}()
+
+	desc, err := resolveTabDescription(args, tabDescribeClear, os.Stdin)
+	if err != nil {
+		OutputHelpMessage(cmd)
+		return err
+	}
+	tabId, err := resolveTargetTabId(tabDescribeTabId)
+	if err != nil {
+		return err
+	}
+	var metaVal any
+	if strings.TrimSpace(desc) != "" {
+		metaVal = desc
+	}
+	err = wshclient.SetMetaCommand(RpcClient, wshrpc.CommandSetMetaData{
+		ORef: waveobj.MakeORef(waveobj.OType_Tab, tabId),
+		Meta: waveobj.MetaMapType{waveobj.MetaKey_TabDescription: metaVal},
+	}, &wshrpc.RpcOpts{Timeout: 2000})
+	if err != nil {
+		return fmt.Errorf("setting tab description: %w", err)
 	}
 	return nil
 }

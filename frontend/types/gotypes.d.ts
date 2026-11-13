@@ -1194,6 +1194,7 @@ declare global {
         "graph:metrics"?: string[];
         "sysinfo:type"?: string;
         "tab:flagcolor"?: string;
+        "tab:description"?: string;
         "tab:background"?: string;
         "bg:*"?: boolean;
         bg?: string;

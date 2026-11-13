@@ -6,6 +6,7 @@ import { validateCssColor } from "@/util/color-validator";
 import { cn } from "@/util/util";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TabBadges } from "./tabbadges";
+import { useTabHoverCard } from "./tabhovercard";
 
 const RenameFocusDelayMs = 50;
 
@@ -15,6 +16,7 @@ export interface VTabItem {
     badge?: Badge | null;
     badges?: Badge[] | null;
     flagColor?: string | null;
+    description?: string | null;
 }
 
 interface VTabProps {
@@ -68,6 +70,14 @@ export function VTab({
             flagColor = null;
         }
     }
+
+    const hoverCard = useTabHoverCard({
+        name: tab.name,
+        description: tab.description,
+        disabled: isEditable || isDragging || isReordering,
+        placement: "right-start",
+    });
+    const hoverRefProps = hoverCard.getReferenceProps();
 
     useEffect(() => {
         setOriginalName(tab.name);
@@ -147,6 +157,8 @@ export function VTab({
 
     return (
         <div
+            {...hoverRefProps}
+            ref={hoverCard.setReference}
             draggable
             data-tabid={tab.id}
             onClick={onSelect}
@@ -154,7 +166,10 @@ export function VTab({
                 event.stopPropagation();
                 startRename();
             }}
-            onContextMenu={onContextMenu}
+            onContextMenu={(event) => {
+                hoverCard.closeCard();
+                onContextMenu?.(event);
+            }}
             onDragStart={onDragStart}
             onDragOver={onDragOver}
             onDrop={onDrop}
@@ -218,6 +233,7 @@ export function VTab({
                     <i className="fa fa-solid fa-xmark" />
                 </button>
             )}
+            {hoverCard.card}
         </div>
     );
 }

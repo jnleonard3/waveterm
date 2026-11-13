@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -95,6 +96,36 @@ func TestReorderTabIds(t *testing.T) {
 			}
 			if len(result) != len(tt.tabIds) {
 				t.Errorf("length changed: got %d, want %d", len(result), len(tt.tabIds))
+			}
+		})
+	}
+}
+
+func TestResolveTabDescription(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		clear   bool
+		stdin   string
+		want    string
+		wantErr bool
+	}{
+		{name: "literal text", args: []string{"hello\nworld"}, want: "hello\nworld"},
+		{name: "empty string clears", args: []string{""}, want: ""},
+		{name: "clear flag", clear: true, want: ""},
+		{name: "clear with text is an error", args: []string{"x"}, clear: true, wantErr: true},
+		{name: "no args is an error", wantErr: true},
+		{name: "stdin", args: []string{"-"}, stdin: "line1\nline2\n", want: "line1\nline2"},
+		{name: "empty stdin", args: []string{"-"}, stdin: "", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := resolveTabDescription(tt.args, tt.clear, strings.NewReader(tt.stdin))
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
+			}
+			if got != tt.want {
+				t.Fatalf("got %q, want %q", got, tt.want)
 			}
 		})
 	}

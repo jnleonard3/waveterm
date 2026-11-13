@@ -16,6 +16,7 @@ import { makeORef } from "../store/wos";
 import { TabBadges } from "./tabbadges";
 import "./tab.scss";
 import { buildTabContextMenu } from "./tabcontextmenu";
+import { useTabHoverCard } from "./tabhovercard";
 
 export type TabEnv = WaveEnvSubset<{
     rpc: {
@@ -42,6 +43,7 @@ interface TabVProps {
     isNew: boolean;
     badges?: Badge[] | null;
     flagColor?: string | null;
+    description?: string | null;
     onClick: () => void;
     onClose: (event: React.MouseEvent<HTMLButtonElement, MouseEvent> | null) => void;
     onDragStart: (event: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
@@ -62,6 +64,7 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
         isNew,
         badges,
         flagColor,
+        description,
         onClick,
         onClose,
         onDragStart,
@@ -80,6 +83,14 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
     const tabRef = useRef<HTMLDivElement>(null);
 
     useImperativeHandle(ref, () => tabRef.current as HTMLDivElement);
+
+    const hoverCard = useTabHoverCard({
+        name: tabName,
+        description,
+        disabled: isEditable || isDragging,
+        placement: "bottom-start",
+    });
+    const hoverRefProps = hoverCard.getReferenceProps();
 
     useEffect(() => {
         setOriginalName(truncateTabName(tabName));
@@ -180,7 +191,11 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
 
     return (
         <div
-            ref={tabRef}
+            {...hoverRefProps}
+            ref={(node) => {
+                tabRef.current = node;
+                hoverCard.setReference(node);
+            }}
             className={clsx("tab", {
                 active,
                 dragging: isDragging,
@@ -188,7 +203,10 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
             })}
             onMouseDown={onDragStart}
             onClick={onClick}
-            onContextMenu={onContextMenu}
+            onContextMenu={(e) => {
+                hoverCard.closeCard();
+                onContextMenu(e);
+            }}
             data-tab-id={tabId}
         >
             {showDivider && <div className="tab-divider" />}
@@ -214,6 +232,7 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
                     <i className="fa fa-solid fa-xmark" />
                 </Button>
             </div>
+            {hoverCard.card}
         </div>
     );
 });
@@ -249,6 +268,8 @@ const TabInner = forwardRef<HTMLDivElement, TabProps>((props, ref) => {
             flagColor = null;
         }
     }
+
+    const description = tabData?.meta?.["tab:description"] ?? null;
 
     const loadedRef = useRef(false);
     const renameRef = useRef<(() => void) | null>(null);
@@ -304,6 +325,7 @@ const TabInner = forwardRef<HTMLDivElement, TabProps>((props, ref) => {
             isNew={isNew}
             badges={badges}
             flagColor={flagColor}
+            description={description}
             onClick={handleTabClick}
             onClose={onClose}
             onDragStart={onDragStart}
