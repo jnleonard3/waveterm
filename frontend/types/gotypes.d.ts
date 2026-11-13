@@ -1503,6 +1503,7 @@ declare global {
         "web:defaulturl"?: string;
         "web:defaultsearch"?: string;
         "web:externaldomains"?: string[];
+        "web:wavecontextdomains"?: string[];
         "autoupdate:*"?: boolean;
         "autoupdate:enabled"?: boolean;
         "autoupdate:intervalms"?: number;

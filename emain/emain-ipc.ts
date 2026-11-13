@@ -8,10 +8,12 @@ import * as child_process from "node:child_process";
 import * as path from "path";
 import { PNG } from "pngjs";
 import { Readable } from "stream";
+import { ClientService } from "../frontend/app/store/services";
 import { RpcApi } from "../frontend/app/store/wshclientapi";
 import { getWebServerEndpoint } from "../frontend/util/endpoints";
 import * as keyutil from "../frontend/util/keyutil";
 import { fireAndForget, parseDataUrl } from "../frontend/util/util";
+import { isWaveContextUrl } from "../frontend/util/wavecontextdomain";
 import {
     incrementTermCommandsDurable,
     incrementTermCommandsRemote,
@@ -24,10 +26,14 @@ import { callWithOriginalXdgCurrentDesktopAsync, unamePlatform } from "./emain-p
 import { getWaveTabViewByWebContentsId } from "./emain-tabview";
 import { handleCtrlShiftState } from "./emain-util";
 import { getWaveVersion } from "./emain-wavesrv";
-import { openExternalUrl } from "./emain-webview-links";
+import { getBlockIdByWebContentsId } from "./emain-web";
+import { getWaveContextDomains, openExternalUrl } from "./emain-webview-links";
 import { buildWebviewMenuItems } from "./emain-webview-menu";
-import { createNewWaveWindow, getWaveWindowByWebContentsId } from "./emain-window";
+import { createNewWaveWindow, getWaveWindowByTabId, getWaveWindowByWebContentsId } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
+
+const WaveContextBlockIdAttempts = 15;
+const WaveContextBlockIdRetryMs = 200;
 
 const electronApp = electron.app;
 
@@ -289,6 +295,57 @@ export function initIpcHandlers() {
             event.sender.navigationHistory.goBack();
         } else if (direction === "forward") {
             event.sender.navigationHistory.goForward();
+        }
+    });
+
+    electron.ipcMain.handle("webview-get-wave-context", async (event): Promise<WaveContext | null> => {
+        const sender = event.sender;
+        const frame = event.senderFrame;
+        if (sender == null || sender.isDestroyed() || sender.getType() !== "webview" || frame == null) {
+            return null;
+        }
+        if (frame !== sender.mainFrame) {
+            return null;
+        }
+        if (!isWaveContextUrl(frame.url, getWaveContextDomains())) {
+            return null;
+        }
+        const hostWc = sender.hostWebContents;
+        const tabView = hostWc == null ? null : getWaveTabViewByWebContentsId(hostWc.id);
+        if (tabView == null || tabView.waveTabId == null) {
+            return null;
+        }
+        const waveWindow = getWaveWindowByTabId(tabView.waveTabId);
+        if (waveWindow == null) {
+            return null;
+        }
+        try {
+            // the renderer only publishes data-webcontentsid after the webview's dom-ready, so a page that
+            // asks during initial load needs a short wait rather than a spurious null
+            let blockId: string = null;
+            for (let i = 0; i < WaveContextBlockIdAttempts && blockId == null; i++) {
+                if (i > 0) {
+                    await new Promise((resolve) => setTimeout(resolve, WaveContextBlockIdRetryMs));
+                }
+                if (sender.isDestroyed() || tabView.webContents.isDestroyed() || frame.url !== sender.mainFrame.url) {
+                    return null;
+                }
+                blockId = await getBlockIdByWebContentsId(tabView.webContents, sender.id);
+            }
+            const clientData = await ClientService.GetClientData();
+            // the page may have navigated while we were resolving ids
+            if (blockId == null || sender.isDestroyed() || frame.url !== sender.mainFrame.url) {
+                return null;
+            }
+            return {
+                blockId,
+                tabId: tabView.waveTabId,
+                workspaceId: waveWindow.workspaceId,
+                clientId: clientData.oid,
+            };
+        } catch (e) {
+            console.log("error resolving wave context for webview", e);
+            return null;
         }
     });
 

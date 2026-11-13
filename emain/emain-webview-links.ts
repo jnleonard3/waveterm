@@ -7,6 +7,7 @@ import { fireAndForget } from "../frontend/util/util";
 import { callWithOriginalXdgCurrentDesktopAsync } from "./emain-platform";
 
 let externalDomains: string[] = [];
+let waveContextDomains: string[] = [];
 
 function normalizeDomains(val: any): string[] {
     return Array.isArray(val) ? val.filter((v) => typeof v === "string") : [];
@@ -16,8 +17,13 @@ export function getExternalDomains(): string[] {
     return externalDomains;
 }
 
+export function getWaveContextDomains(): string[] {
+    return waveContextDomains;
+}
+
 export function setExternalDomainsFromSettings(settings: SettingsType) {
     externalDomains = normalizeDomains(settings?.["web:externaldomains"]);
+    waveContextDomains = normalizeDomains(settings?.["web:wavecontextdomains"]);
 }
 
 export function initExternalDomainsEventSubscription() {

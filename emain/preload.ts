@@ -81,6 +81,12 @@ ipcRenderer.on("webview-new-window", (e, webContentsId, details) => {
     document.getElementById("webview").dispatchEvent(event);
 });
 
+ipcRenderer.on("blockid-from-webcontentsid", (e, wcId, responseCh) => {
+    const webviewElem: WebviewTag = document.querySelector("webview[data-webcontentsid='" + wcId + "']");
+    const blockId = webviewElem?.dataset?.blockid;
+    ipcRenderer.send(responseCh, blockId);
+});
+
 ipcRenderer.on("webcontentsid-from-blockid", (e, blockId, responseCh) => {
     const webviewElem: WebviewTag = document.querySelector("div[data-blockid='" + blockId + "'] webview");
     const wcId = webviewElem?.dataset?.webcontentsid;

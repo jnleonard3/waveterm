@@ -77,6 +77,13 @@ declare global {
         windowId: string;
     };
 
+    type WaveContext = {
+        blockId: string;
+        tabId: string;
+        workspaceId: string;
+        clientId: string;
+    };
+
     type ElectronApi = {
         getAuthKey(): string; // get-auth-key
         getIsDev(): boolean; // get-is-dev

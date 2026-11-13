@@ -237,6 +237,12 @@
           },
           "type": "array"
         },
+        "web:wavecontextdomains": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "autoupdate:*": {
           "type": "boolean"
         },

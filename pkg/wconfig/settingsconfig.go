@@ -133,6 +133,7 @@ type SettingsType struct {
 	WebDefaultUrl          string   `json:"web:defaulturl,omitempty"`
 	WebDefaultSearch       string   `json:"web:defaultsearch,omitempty"`
 	WebExternalDomains     []string `json:"web:externaldomains,omitempty"`
+	WebWaveContextDomains  []string `json:"web:wavecontextdomains,omitempty"`
 
 	AutoUpdateClear         bool    `json:"autoupdate:*,omitempty"`
 	AutoUpdateEnabled       bool    `json:"autoupdate:enabled,omitempty"`

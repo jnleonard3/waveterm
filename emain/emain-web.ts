@@ -24,6 +24,22 @@ export function getWebContentsByBlockId(ww: WaveBrowserWindow, tabId: string, bl
     return prtn;
 }
 
+export function getBlockIdByWebContentsId(tabWebContents: WebContents, guestWebContentsId: number): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+        const randId = Math.floor(Math.random() * 1000000000).toString();
+        const respCh = `getBlockIdByWebContentsId-${randId}`;
+        const timeout = setTimeout(() => {
+            ipcMain.removeAllListeners(respCh);
+            reject(new Error("timeout waiting for response"));
+        }, 2000);
+        ipcMain.once(respCh, (_event, blockId) => {
+            clearTimeout(timeout);
+            resolve(blockId ?? null);
+        });
+        tabWebContents.send("blockid-from-webcontentsid", guestWebContentsId, respCh);
+    });
+}
+
 function escapeSelector(selector: string): string {
     return selector
         .replace(/\\/g, "\\\\")

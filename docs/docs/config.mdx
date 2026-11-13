@@ -90,6 +90,7 @@ wsh editconfig
 | web:defaulturl                       | string   | default web page to open in the web widget when no url is provided (homepage)                                                                                                                                                                                 |
 | web:defaultsearch                    | string   | search template for web searches. e.g. `https://www.google.com/search?q={query}`. "\{query}" gets replaced by search term                                                                                                                                     |
 | web:externaldomains                  | string[] | domains whose links always open in the system browser instead of a web widget, e.g. `["github.com"]`. matches the host and all subdomains. typing the URL directly into a web widget still loads it, and links within that page stay in the widget |
+| web:wavecontextdomains               | string[] | sites that may read their Wave block/tab/workspace/client ids from `window.waveContext` when loaded in a web widget, e.g. `["localhost:3104"]`. empty by default (feature off). see [Wave Context for Web Widgets](#wave-context-for-web-widgets) |
 | autoupdate:enabled                   | bool     | enable/disable checking for updates (requires app restart)                                                                                                                                                                                                    |
 | autoupdate:intervalms                | float64  | time in milliseconds to wait between update checks (requires app restart)                                                                                                                                                                                     |
 | autoupdate:installonquit             | bool     | whether to automatically install updates on quit (requires app restart)                                                                                                                                                                                       |
@@ -182,6 +183,68 @@ To avoid putting secrets directly in config files, Wave supports environment var
   "ai:baseurl": "$ENV:AI_BASEURL:https://api.openai.com/v1"
 }
 ```
+
+## Wave Context for Web Widgets
+
+By default a page loaded in a web widget has no idea it is running inside Wave. The `web:wavecontextdomains` setting lets you opt specific sites in to learn which block, tab, workspace and client they are running in (the same ids a terminal block gets as `WAVETERM_BLOCKID`, `WAVETERM_TABID`, etc.). This is meant for Wave-aware developer tooling that wants to ask its own backend to act on the current tab.
+
+The setting is global, empty by default (feature off), and takes effect immediately when `settings.json` is saved (no restart needed).
+
+```json
+{
+  "web:wavecontextdomains": ["localhost:3104", "tools.example.com"]
+}
+```
+
+### Matching Rules
+
+| Entry form                         | What it matches                                                                                  |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `example.com` (bare host)          | that host and all of its subdomains, on any port                                                 |
+| `localhost:3104` (host with port)  | that host and that exact port only (no subdomains). default ports are implied by the scheme (`:443` for https, `:80` for http) |
+| `http://localhost:3104/any/path`   | a full URL is accepted and reduced to its host and port (the scheme and path are otherwise ignored) |
+
+- Only `http:` and `https:` pages can match. Entries with other schemes, and malformed entries, are ignored.
+- A bare `localhost` matches every local dev server. Prefer `localhost:<port>`.
+- Matching is case-insensitive, and the check runs against the page's **current** URL on every call.
+
+### API
+
+Every web widget exposes `window.waveContext` to the page:
+
+```ts
+interface WaveContext {
+    blockId: string;
+    tabId: string;
+    workspaceId: string;
+    clientId: string;
+}
+window.waveContext.get(): Promise<WaveContext | null>
+```
+
+| What the page sees              | Meaning                                                            |
+| ------------------------------- | ------------------------------------------------------------------ |
+| `window.waveContext` undefined  | not running inside a Wave web widget                               |
+| `get()` resolves `null`         | inside Wave, but this page is not enabled (or this is an iframe)   |
+| `get()` resolves an object      | enabled. the ids are current at call time (e.g. if the block moves to another tab) |
+
+```ts
+const ctx = await window.waveContext?.get(); // undefined outside Wave, null if not allowed
+if (ctx) {
+    fetch("/api/open-terminal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tabId: ctx.tabId }),
+    });
+}
+```
+
+### Security Notes
+
+- The allowlist is enforced by Wave's main process, not by the page. The page's current main-frame URL is checked on every `get()` call, so a widget that navigates from a listed site to an unlisted one stops receiving the context immediately.
+- Only the top-level frame is served. Iframes always get `null`, even if their origin is listed.
+- The payload is ids only. No auth key, JWT or RPC access is ever exposed to the page, and the ids grant nothing on their own.
+- Only list sites you trust: any script running on a listed page (including third-party scripts it loads) can read the ids.
 
 ## WebBookmarks Configuration
 
